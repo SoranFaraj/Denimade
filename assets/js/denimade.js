@@ -1,13 +1,13 @@
 /* ==========================================================================
-   DENIMADE UF — interaktion
-   Vanilla JS, inga beroenden. Allt innehåll är läsbart utan den här filen;
-   skriptet lägger bara till lager ovanpå.
+   DENIMADE UF, interaktion
+
+   Vanilla JS, inga beroenden. Sidan har medvetet ingen inanimering vid scroll:
+   det enda som rör sig är återkoppling på hover, meny och fokus. Allt innehåll
+   är läsbart utan den här filen.
    ========================================================================== */
 
 (function () {
   'use strict';
-
-  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   /* ---- Header: hårlinje när sidan har scrollats ------------------------- */
 
@@ -131,29 +131,4 @@
     closeMenu(false);
   }
 
-  /* ---- Reveal ----------------------------------------------------------- */
-
-  var targets = document.querySelectorAll('.reveal');
-
-  if (!targets.length) return;
-
-  if (reduced.matches || !('IntersectionObserver' in window)) {
-    for (var i = 0; i < targets.length; i++) targets[i].classList.add('is-in');
-    return;
-  }
-
-  var observer = new IntersectionObserver(function (entries) {
-    entries.forEach(function (entry) {
-      if (!entry.isIntersecting) return;
-      entry.target.classList.add('is-in');
-      observer.unobserve(entry.target);
-    });
-  }, { rootMargin: '0px 0px -12% 0px', threshold: 0.08 });
-
-  targets.forEach(function (target) {
-    /* Element som redan syns vid inladdning ska inte tona in efteråt. */
-    var box = target.getBoundingClientRect();
-    if (box.top < window.innerHeight * 0.9) target.classList.add('is-in');
-    else observer.observe(target);
-  });
 }());
