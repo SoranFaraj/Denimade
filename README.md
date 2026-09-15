@@ -101,18 +101,8 @@ dem där, inte längre ner i filen.
 markeringar. Ska något skrivas i sytrådsfärg, använd `--thread-deep`, som
 klarar 5,5:1 mot både papper och ben.
 
-Typsnitt, alla tre från Google Fonts:
-
-| Typsnitt | Roll |
-|---|---|
-| **Luckiest Guy** | de största rubrikerna: hero, sidrubriker, sektionsrubriker, citat, mobilmeny |
-| **Archivo** | allt mindre: brödtext, navigation, produktnamn, FAQ-frågor, processkedjan |
-| **Caveat** | handmärkningen |
-
-Luckiest Guy är en displayskärning utan äkta gemener: skriver man gemener
-renderas de som kapitäler. Den fungerar bara stort. Under ungefär 24 px blir
-den kompakt och svårläst, vilket är varför `h3` och mindre bärs av Archivo
-halvfet i stället. Flytta inte ner den i skalan. Vill ni slippa det externa anropet: ladda ner filerna till
+Typsnitt: **Fraunces** för rubriker, **Archivo** för gränssnitt och brödtext,
+**Caveat** för handmärkningen. Alla tre hämtas från Google Fonts. Vill ni slippa det externa anropet: ladda ner filerna till
 `assets/` och byt ut `<link>`-taggen mot en `@font-face`-regel.
 
 Mönstret som ger ytorna materialkänsla (`--twill-light` / `--twill-dark`) är en
