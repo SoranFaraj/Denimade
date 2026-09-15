@@ -26,7 +26,8 @@
   --bone:        #e7e2d8;
   --bone-deep:   #d8d2c5;
   --grey:        #63605a;
-  --thread:      #c0782e;   /* sytråd. Dekoration, aldrig brödtext. */
+  --thread:      #c0782e;   /* sytråd. Linjer och pilar. */
+  --thread-deep: #8f5518;   /* samma hue, mörkad tills den bär text. */
 
   /* Denimens kypertväv, återgiven i CSS. Inga bildfiler inblandade. */
   --twill-light: repeating-linear-gradient(45deg,
@@ -37,6 +38,7 @@
   --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype",
                   Palatino, Georgia, serif;
   --font-ui:      "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-hand:    "Caveat", "Segoe Print", "Bradley Hand", cursive;
 
   /* Måttlig skala. Rubrikerna bär text, de imponerar inte. */
   --t-display: clamp(2.375rem, 5.2vw, 4.5rem);
@@ -958,7 +960,7 @@ body.is-locked .burger span { background: var(--paper); }
     column-gap: var(--s-5);
     align-items: start;
   }
-  .step--split .step__fig { margin-top: 0; max-width: 420px; justify-self: end; }
+  .step--split .step__fig { margin-top: 0; max-width: 380px; justify-self: end; }
 
   .spec__row { grid-template-columns: 1fr 9rem; }
 }
@@ -991,3 +993,55 @@ body.is-locked .burger span { background: var(--paper); }
     scroll-behavior: auto !important;
   }
 }
+
+
+/* 23  Handmärkning
+   --------------------------------------------------------------------------
+   Anteckningar skrivna för hand, som märkningen på ett tygprov innan man
+   klipper. Används sparsamt och bara där den säger något: vad bilden visar,
+   vad som gäller för materialet. Aldrig som utfyllnad.
+   ========================================================================== */
+
+/* Bildanvisningen i platshållaren är en lapp till fotografen. Satt för hand
+   läser den som klotter på ett kontaktkark i stället för som gränssnittstext. */
+.ph__note {
+  font-family: var(--font-hand);
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--grey);
+  max-width: 24ch;
+}
+.ph--onDark .ph__note { color: rgba(244, 241, 234, .75); }
+
+/* Fristående anteckning med pil mot det den syftar på. */
+.note {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: .4rem;
+  margin-top: var(--s-2);
+  font-family: var(--font-hand);
+  font-size: clamp(1.125rem, 1.7vw, 1.4375rem);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--thread-deep);
+  transform: rotate(-2.5deg);
+  transform-origin: left bottom;
+}
+
+.note__arrow { width: 50px; height: 34px; flex: none; margin-bottom: -.15rem; }
+.note__arrow path {
+  fill: none;
+  stroke: var(--thread);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Pilen pekar nedåt höger som utgångsläge. Modifierarna vänder den. */
+.note--up .note__arrow    { transform: scaleY(-1); }
+.note--left .note__arrow  { transform: scaleX(-1); }
+.note--left               { flex-direction: row-reverse; transform: rotate(2deg); }
+
+.note--onDark { color: var(--paper); }
+.note--onDark .note__arrow path { stroke: var(--thread); }

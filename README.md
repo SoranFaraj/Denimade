@@ -94,17 +94,52 @@ dem där, inte längre ner i filen.
 | `--bone` `#e7e2d8` | sekundär yta och hårlinjer |
 | `--ink` `#14161a` | brödtext |
 | `--grey` `#63605a` | meta och bildtexter |
-| `--thread` `#c0782e` | sytråd, dekoration och accent |
+| `--thread` `#c0782e` | sytråd, linjer och pilar |
+| `--thread-deep` `#8f5518` | samma ton mörkad tills den bär text |
 
-`--thread` har för låg kontrast för brödtext. Använd den bara till linjer,
-markeringar och platshållartaggar, aldrig till löpande text.
+`--thread` har för låg kontrast för text. Använd den till linjer, pilar och
+markeringar. Ska något skrivas i sytrådsfärg, använd `--thread-deep`, som
+klarar 5,5:1 mot både papper och ben.
 
-Typsnitt: **Fraunces** för rubriker, **Archivo** för allt annat. Båda hämtas
-från Google Fonts. Vill ni slippa det externa anropet: ladda ner filerna till
+Typsnitt: **Fraunces** för rubriker, **Archivo** för gränssnitt och brödtext,
+**Caveat** för handmärkningen. Alla tre hämtas från Google Fonts. Vill ni slippa det externa anropet: ladda ner filerna till
 `assets/` och byt ut `<link>`-taggen mot en `@font-face`-regel.
 
 Mönstret som ger ytorna materialkänsla (`--twill-light` / `--twill-dark`) är en
 CSS-gradient som återger denimens kypertväv. Ingen bildfil inblandad.
+
+## Handmärkningen
+
+Bildanvisningen inuti varje platshållare (`.ph__note`) är satt i Caveat, så
+att den läser som en lapp till fotografen i stället för som gränssnittstext.
+
+Utöver det finns fem fristående anteckningar på sajten, en per plats där det
+faktiskt finns något att peka ut:
+
+| Sida | Anteckning |
+|---|---|
+| `index.html` | "inga två lika" vid första produkten |
+| `index.html` | "tyget bestämmer formen" vid om-bilden |
+| `process.html` | "allt begagnat" vid steg 01 |
+| `process.html` | "sömmarna sparas" vid steg 03 |
+| `hallbarhet.html` | "kypertväv" vid närbilden på väven |
+
+Markupen ser ut så här. Pilen är en ritad kurva, inte ett tecken:
+
+```html
+<p class="note note--up">inga två lika
+  <svg class="note__arrow" viewBox="0 0 50 34" aria-hidden="true">
+    <path d="M3 5 C 17 3, 33 8, 43 25"/>
+    <path d="M36 20 L 45 28 L 34 30"/>
+  </svg>
+</p>
+```
+
+`note--up` vänder pilen uppåt, för anteckningar som ligger under sin bild.
+`note--left` vänder den åt vänster.
+
+**Lägg inte till fler utan att de säger något.** Poängen är att de pekar ut
+något sant om materialet eller arbetet. Blir de utfyllnad slutar de fungera.
 
 ## Designregler att hålla fast vid
 
@@ -120,6 +155,8 @@ Sajten är medvetet återhållsam. Om ni bygger vidare, behåll det här:
 - **Inga pilar i knappar och länkar**
 - **Varje sektion har en egen komposition.** Två sektioner på samma sida ska
   inte se likadana ut
+- **Handmärkningen är sparsam.** Fem anteckningar på hela sajten, var och en
+  med något att peka på
 
 ## Tillgänglighet
 
