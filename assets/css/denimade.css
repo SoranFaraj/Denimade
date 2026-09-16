@@ -329,30 +329,52 @@ p > .link:not(.btn):focus-visible::after { opacity: 1; }
 .header.is-scrolled { border-bottom-color: var(--bone-deep); }
 
 body.is-locked .header { background: transparent; border-bottom-color: transparent; }
-body.is-locked .brand  { color: var(--paper); border-color: rgba(244, 241, 234, .42); }
+body.is-locked .brand  { color: var(--paper); }
 body.is-locked .burger span { background: var(--paper); }
 
 .header__inner {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--s-3);
-  min-height: 68px;
+  min-height: 74px;
   padding-block: .7rem;
 }
 
-/* Logotypen är en platshållare tills den riktiga filen finns, formgiven
-   som sidans övriga tomrum. */
+/* Logotypen är broderad i ljus tråd på mörk denim. Fotot är extraherat till
+   en alfamask, så märket tar färg av sin omgivning: indigo mot papper,
+   gräddvitt mot indigo. Stygntexturen följer med.
+
+   Utan stöd för mask-image faller den tillbaka på ren text. */
 .brand {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-height: 36px;
-  padding: .4rem .85rem;
-  border: 1px dashed rgba(28, 48, 80, .45);
-  font-size: .75rem;
+  display: inline-flex;
+  align-items: center;
+  font-size: .8125rem;
+  font-weight: 600;
   color: var(--indigo);
   text-decoration: none;
-  white-space: nowrap;
-  transition: border-color .2s var(--ease);
 }
-.brand:hover { border-color: var(--thread); }
+
+.logo {
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: left center; mask-position: left center;
+  -webkit-mask-size: contain; mask-size: contain;
+  background-color: currentColor;
+}
+
+@supports ((-webkit-mask-image: url("x")) or (mask-image: url("x"))) {
+  .logo__txt {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+
+  .brand {
+    height: 38px;
+    aspect-ratio: 660 / 168;
+    -webkit-mask-image: url("../img/denimade-wordmark.png");
+    mask-image: url("../img/denimade-wordmark.png");
+    transition: opacity .2s var(--ease);
+  }
+  .brand:hover { opacity: .72; }
+}
 
 .nav { display: none; }
 .nav__list { display: flex; align-items: center; gap: clamp(1.1rem, 2vw, 1.9rem); }
@@ -505,12 +527,15 @@ body.is-locked .burger span { background: var(--paper); }
 
 .hero__head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); }
 
-.hero__logo {
-  padding: 1rem 1.5rem;
-  border: 1px dashed rgba(28, 48, 80, .45);
-  font-size: var(--t-label);
-  color: var(--indigo);
-  line-height: 1.4;
+.hero__logo { color: var(--indigo); font-size: var(--t-label); }
+
+@supports ((-webkit-mask-image: url("x")) or (mask-image: url("x"))) {
+  .hero__logo {
+    height: clamp(58px, 7vw, 84px);
+    aspect-ratio: 660 / 265;
+    -webkit-mask-image: url("../img/denimade-lockup.png");
+    mask-image: url("../img/denimade-lockup.png");
+  }
 }
 
 .hero__type { display: flex; flex-direction: column; gap: var(--s-3); }
@@ -807,12 +832,15 @@ body.is-locked .burger span { background: var(--paper); }
 
 .footer__inner { display: grid; gap: var(--s-4); }
 
-.footer__brand {
-  display: inline-block;
-  padding: .8rem 1.25rem;
-  border: 1px dashed rgba(244, 241, 234, .42);
-  font-size: .75rem;
-  line-height: 1.4;
+.footer__brand { display: inline-block; font-size: .75rem; }
+
+@supports ((-webkit-mask-image: url("x")) or (mask-image: url("x"))) {
+  .footer__brand {
+    height: 62px;
+    aspect-ratio: 660 / 265;
+    -webkit-mask-image: url("../img/denimade-lockup.png");
+    mask-image: url("../img/denimade-lockup.png");
+  }
 }
 
 .footer__mail {

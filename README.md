@@ -36,16 +36,25 @@ respektive `class="footer"`.
 Allt som står `(Placeholder: …)` är medvetet tomt och väntar på riktigt
 innehåll. Inget av det är påhittat.
 
-**Logotyp.** Finns på tre ställen per sida:
+**Logotypen är på plats.** Den är broderad i ljus tråd på mörk denim, och
+fotot är extraherat till två alfamasker:
 
-| Klass | Var |
-|---|---|
-| `.brand` | i headern |
-| `.hero__logo` | i heron på startsidan |
-| `.footer__brand` | i footern |
+| Fil | Används av | Innehåll |
+|---|---|---|
+| `assets/img/denimade-wordmark.png` | `.brand` i headern | enbart "Denimade" |
+| `assets/img/denimade-lockup.png` | `.hero__logo`, `.footer__brand` | "Denimade" med "UF" under |
 
-Byt ut elementets textinnehåll mot en `<img>` eller inlinad SVG och ta bort
-`border`-raden för respektive klass i CSS:en.
+Masken ritas med `mask-image` och `background-color: currentColor`, vilket gör
+att märket tar färg av sin omgivning: indigo mot papper, gräddvitt mot indigo.
+Samma fil fungerar alltså på båda bottnarna. Vill ni byta färg på märket räcker
+det att ändra `color` på elementet.
+
+Utan stöd för `mask-image` faller den tillbaka på texten "Denimade UF", som
+alltid finns i markupen för skärmläsare.
+
+Ska logotypen bytas ut: ersätt PNG-filerna med nya masker i samma form, alltså
+vitt märke på genomskinlig botten. `aspect-ratio` i CSS:en måste då matcha de
+nya filernas proportioner.
 
 **Bilder.** Varje platshållare ser ut så här:
 
