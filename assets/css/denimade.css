@@ -527,17 +527,6 @@ body.is-locked .burger span { background: var(--paper); }
 
 .hero__head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); }
 
-.hero__logo { color: var(--indigo); font-size: var(--t-label); }
-
-@supports ((-webkit-mask-image: url("x")) or (mask-image: url("x"))) {
-  .hero__logo {
-    height: clamp(58px, 7vw, 84px);
-    aspect-ratio: 660 / 265;
-    -webkit-mask-image: url("../img/denimade-lockup.png");
-    mask-image: url("../img/denimade-lockup.png");
-  }
-}
-
 .hero__type { display: flex; flex-direction: column; gap: var(--s-3); }
 .hero__actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: .35rem; }
 
@@ -909,9 +898,6 @@ body.is-locked .burger span { background: var(--paper); }
     justify-content: flex-start;
     padding-top: clamp(1.5rem, 8vw, 2.5rem);
   }
-  /* Headern bär redan märket några rader upp. */
-  .hero__logo { display: none; }
-
   .spec__row { grid-template-columns: 1fr auto; }
 }
 
