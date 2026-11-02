@@ -1,0 +1,2093 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>LjusCo Tycoon</title>
+<!--
+  LjusCo Tycoon – ett idle/tycoon-spel om LjusCo, dörrförsäljning av ljusklasar i Göteborg.
+  En enda fil: HTML + CSS + vanilla JavaScript. Inga externa bilder eller bibliotek.
+  Allt som är kul att mixtra med (säljare, priser, balans) ligger i CONFIG högst upp i <script>.
+-->
+<style>
+/* =========================================================================
+   FÄRGER OCH GRUND
+   ========================================================================= */
+:root {
+  --plum: #2b1838;
+  --plum2: #43264f;
+  --cream: #fff7e8;
+  --cream2: #fbebcd;
+  --card: #fffdf7;
+  --ink: #3b2716;
+  --ink2: #7a6046;
+  --orange: #ff8a3d;
+  --orange2: #e86a1c;
+  --gold: #ffc94a;
+  --gold2: #f0a91c;
+  --green: #4fb36a;
+  --green2: #2f8f4c;
+  --red: #e5534b;
+  --blue: #4a8fd8;
+  --teal: #2fa3a0;
+  --shadow: 0 4px 0 rgba(59, 39, 22, .18), 0 8px 18px rgba(59, 39, 22, .14);
+  --shadow-s: 0 2px 0 rgba(59, 39, 22, .2), 0 4px 10px rgba(59, 39, 22, .12);
+  --panel-w: 480px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  min-width: 1280px;
+  background: var(--plum);
+  color: var(--ink);
+  font-family: "Nunito", "Segoe UI Rounded", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+  user-select: none;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+  border-radius: 12px;
+  padding: 7px 12px;
+  background: var(--cream2);
+  color: var(--ink);
+  font-weight: 800;
+  box-shadow: 0 3px 0 rgba(59,39,22,.25);
+  transition: transform .08s, filter .15s, background .15s;
+}
+button:hover:not(:disabled) { filter: brightness(1.06); }
+button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 rgba(59,39,22,.25); }
+button:disabled { opacity: .5; cursor: default; filter: grayscale(.4); }
+button.buy { background: #d9d0bf; color: #6d604f; }
+button.buy.can { background: linear-gradient(#7fd48c, var(--green)); color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.25); }
+button.orange { background: linear-gradient(#ffab6b, var(--orange)); color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.25); }
+button.red { background: linear-gradient(#f07a73, var(--red)); color: #fff; }
+button.ghost { background: transparent; box-shadow: none; text-decoration: underline; padding: 4px 6px; }
+button.small { padding: 4px 9px; font-size: 12px; border-radius: 9px; }
+
+/* =========================================================================
+   TOPPBAR
+   ========================================================================= */
+#topbar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  background: linear-gradient(#4a2a57, var(--plum));
+  color: #fff;
+  border-bottom: 3px solid #1d0f27;
+  position: relative;
+  z-index: 20;
+}
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 20px; letter-spacing: .3px; white-space: nowrap; }
+.logo b { color: var(--gold); }
+.stat {
+  background: rgba(255,255,255,.1);
+  border-radius: 14px;
+  padding: 5px 12px;
+  display: flex; flex-direction: column;
+  line-height: 1.15;
+  min-width: 96px;
+}
+.stat small { font-size: 11px; opacity: .75; font-weight: 700; }
+.stat span { font-size: 17px; font-weight: 900; white-space: nowrap; }
+.stat.cash span { color: var(--gold); font-size: 21px; }
+#effects { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; align-items: center; overflow: hidden; height: 56px; align-content: center; }
+.chip {
+  font-size: 11px; font-weight: 800;
+  padding: 2px 8px; border-radius: 99px;
+  background: #fff; color: var(--ink);
+  white-space: nowrap;
+  animation: pop .3s;
+}
+.chip.good { background: #d7f5d8; color: #1f6b33; }
+.chip.bad { background: #ffd9d4; color: #9b2a22; }
+.chip.ability { background: #ffe9b8; color: #7a4d00; }
+#buyMode { display: flex; background: rgba(0,0,0,.25); border-radius: 12px; padding: 3px; }
+#buyMode button { padding: 4px 9px; background: transparent; color: #fff; box-shadow: none; font-size: 12px; }
+#buyMode button.on { background: var(--gold); color: var(--ink); }
+#settingsBtn { background: rgba(255,255,255,.14); color: #fff; font-size: 18px; padding: 6px 10px; }
+
+/* =========================================================================
+   HUVUDLAYOUT
+   ========================================================================= */
+#main { display: flex; height: calc(100vh - 64px); overflow: hidden; }
+#left { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
+#scene {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  background: #3b2147;
+  scrollbar-width: thin;
+}
+#world { position: relative; width: 100%; min-width: 790px; }
+
+/* Vägen längs vänsterkanten */
+#road {
+  position: absolute; left: 0; top: 150px; bottom: 0; width: 96px;
+  background: #4d4a52;
+  border-right: 5px solid #d9cfba;
+  border-left: 5px solid #d9cfba;
+  z-index: 3;
+}
+#road::after {
+  content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 4px; margin-left: -2px;
+  background: repeating-linear-gradient(#f5e9b0 0 18px, transparent 18px 36px);
+  opacity: .8;
+}
+#car { position: absolute; left: 24px; width: 48px; z-index: 6; will-change: top; }
+#car svg { display: block; transition: transform .25s; }
+#car .load {
+  position: absolute; left: 50px; top: 50%; transform: translateY(-50%);
+  background: #fff; border-radius: 10px; padding: 2px 7px; font-weight: 900; font-size: 12px;
+  box-shadow: var(--shadow-s); white-space: nowrap; color: var(--green2);
+}
+#car.flat svg { animation: shake .25s infinite; }
+#car .flatTag { position: absolute; left: 50px; top: -6px; background: var(--red); color: #fff; border-radius: 8px; padding: 1px 6px; font-size: 11px; font-weight: 900; display: none; }
+#car.flat .flatTag { display: block; }
+
+/* Hemma */
+#home { position: relative; height: 270px; overflow: hidden; }
+#home .homeBg { position: absolute; inset: 0; }
+.homeCard {
+  position: absolute; background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
+  padding: 9px 11px; z-index: 4;
+}
+#kassaCard { left: 112px; top: 148px; width: 238px; }
+#carCard { left: 112px; top: 14px; width: 238px; }
+#benchCard { right: 14px; top: 150px; width: 300px; min-height: 104px; }
+.homeCard h4 { margin: 0 0 4px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+.homeCard .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink2); font-weight: 700; }
+.homeCard button.buy { width: 100%; margin-top: 6px; }
+.homeCard .two { display: flex; gap: 6px; }
+.homeCard .two button { flex: 1; font-size: 12px; padding: 6px 4px; }
+#soranDesk { position: absolute; left: 370px; top: 140px; width: 140px; height: 124px; z-index: 3; }
+#soranDesk .coin { position: absolute; font-weight: 900; color: var(--gold2); animation: coin .9s ease-out forwards; font-size: 13px; text-shadow: 0 1px 0 #fff; }
+#bench { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.benchie { display: flex; flex-direction: column; align-items: center; width: 34px; font-size: 9px; font-weight: 800; color: var(--ink2); text-align: center; line-height: 1; }
+.benchie svg { display: block; }
+
+/* Områden */
+.area { position: relative; height: 196px; overflow: hidden; border-top: 4px solid rgba(0,0,0,.18); }
+.area .sky { position: absolute; inset: 0; }
+.area .ground { position: absolute; left: 96px; right: 0; top: 164px; height: 32px; background: #d8ccb6; border-top: 3px solid #bfae92; }
+.area .street { position: absolute; left: 286px; top: 22px; width: 520px; height: 168px; }
+.area .street svg.bld { position: absolute; left: 0; top: 0; }
+.areaInfo {
+  position: absolute; left: 108px; top: 12px; width: 168px; bottom: 12px;
+  background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
+  padding: 8px 10px; z-index: 4; display: flex; flex-direction: column; gap: 3px;
+}
+.areaInfo h3 { margin: 0; font-size: 16px; line-height: 1.1; }
+.areaInfo .meta { font-size: 11px; color: var(--ink2); font-weight: 800; }
+.areaInfo .bagWrap { display: flex; align-items: center; gap: 6px; }
+.areaInfo .bagText { font-size: 11px; font-weight: 800; line-height: 1.2; }
+.areaInfo .bagText b { font-size: 13px; }
+.areaInfo button { font-size: 12px; padding: 6px 4px; margin-top: auto; }
+.bagSvg .fill { transition: height .2s, y .2s; }
+.bagWrap.full .bagSvg { animation: pulse .8s infinite; }
+.bagWrap.full .bagText { color: var(--red); }
+.area.locked .street, .area.locked .sky { filter: grayscale(.85) brightness(.55); }
+.lockBox {
+  position: absolute; left: 330px; top: 50px; z-index: 5; text-align: center;
+  background: var(--card); border-radius: 18px; padding: 14px 22px; box-shadow: var(--shadow);
+}
+.lockBox h3 { margin: 0 0 4px; }
+.lockBox p { margin: 0 0 8px; color: var(--ink2); font-weight: 700; font-size: 12px; }
+.fullNote { position: absolute; left: 300px; top: 8px; background: var(--red); color: #fff; padding: 2px 10px; border-radius: 10px; font-weight: 900; font-size: 12px; z-index: 5; display: none; animation: pulse .9s infinite; }
+.area.isFull .fullNote { display: block; }
+.stop { position: absolute; left: 76px; top: 86px; width: 26px; height: 26px; z-index: 4; }
+
+/* Dörrar */
+.door { position: absolute; width: 20px; height: 29px; z-index: 2; }
+.door .inside { position: absolute; inset: 0; background: #ffcf6e; border-radius: 3px 3px 0 0; box-shadow: inset 0 0 8px #ff9f2e; }
+.door .leaf {
+  position: absolute; inset: 0; border-radius: 3px 3px 0 0; transform-origin: left center;
+  transition: transform .25s ease-out; border: 2px solid rgba(0,0,0,.25);
+}
+.door .leaf::after { content: ""; position: absolute; right: 3px; top: 13px; width: 3px; height: 3px; border-radius: 50%; background: #f6d36b; }
+.door.open .leaf { transform: perspective(70px) rotateY(-72deg); }
+.door.knock .leaf { animation: knock .3s 2; }
+.door .bub {
+  position: absolute; bottom: 33px; left: 50%; transform: translateX(-50%);
+  background: #fff; border-radius: 10px; padding: 2px 7px; font-size: 11px; font-weight: 900; white-space: nowrap;
+  box-shadow: var(--shadow-s); animation: bub 1.1s ease-out forwards; pointer-events: none; z-index: 8;
+}
+.door .bub.no { color: #9b4a3a; }
+.door .bub.yes { color: var(--green2); }
+.door .bub.kn { color: #8a7a6a; background: #f4ecdf; }
+
+/* Säljarfigurer */
+.seller { position: absolute; top: 118px; width: 26px; height: 50px; z-index: 6; will-change: transform; }
+.seller svg { display: block; }
+.seller .fig { transition: transform .15s; }
+.seller.left .fig { transform: scaleX(-1); }
+.seller.walk .lg1 { animation: legA .32s infinite alternate; }
+.seller.walk .lg2 { animation: legB .32s infinite alternate; }
+.seller.walk .fig { animation: bob .32s infinite alternate; }
+.seller .nm {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  font-size: 9px; font-weight: 900; color: #fff; background: rgba(43,24,56,.7); padding: 0 4px; border-radius: 6px; white-space: nowrap;
+}
+.seller.evicted { opacity: .4; }
+.seller.idle .fig { animation: none; }
+
+/* Flygande siffror */
+.float {
+  position: absolute; z-index: 9; pointer-events: none; font-weight: 900; font-size: 14px;
+  color: #2f9e4c; text-shadow: 0 1px 0 #fff, 0 0 4px #fff; white-space: nowrap;
+  animation: floatUp 1.3s ease-out forwards;
+}
+.float.big { font-size: 18px; color: var(--gold2); }
+
+/* =========================================================================
+   MANAGER-RAD
+   ========================================================================= */
+#managers {
+  height: 104px; flex: none;
+  background: linear-gradient(#5a3468, #3a1f47);
+  border-top: 3px solid #1d0f27;
+  display: flex; gap: 8px; padding: 9px 10px; align-items: stretch; overflow: hidden;
+}
+.mgr { background: var(--cream); border-radius: 16px; display: flex; gap: 6px; padding: 6px 6px; flex: none; box-shadow: var(--shadow-s); align-items: center; }
+.mgr .who { display: flex; flex-direction: column; align-items: center; width: 56px; text-align: center; line-height: 1.1; }
+.mgr .who b { font-size: 13px; }
+.mgr .who small { font-size: 10px; color: var(--ink2); font-weight: 800; }
+.mgr .portrait { width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: #ffe2b0; border: 3px solid #fff; box-shadow: 0 2px 0 rgba(0,0,0,.15); cursor: pointer; }
+.ability {
+  width: 98px; display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 6px 8px;
+  background: linear-gradient(#ffd77e, var(--gold)); text-align: left; position: relative;
+}
+.ability .an { font-size: 11px; line-height: 1.1; letter-spacing: -.2px; }
+.ability .as { font-size: 11px; font-weight: 800; color: #6d4a00; }
+.ability .ab { height: 6px; border-radius: 4px; background: rgba(0,0,0,.15); overflow: hidden; }
+.ability .ab i { display: block; height: 100%; background: #fff; width: 0; }
+.ability.active { background: linear-gradient(#a8ef9f, var(--green)); color: #fff; }
+.ability.active .as { color: #eaffea; }
+.ability.cd { background: #e2d8c6; }
+.mgr.maxi { flex: 1; min-width: 0; }
+.mgr.maxi .mtext { font-size: 11.5px; font-weight: 800; flex: 1; min-width: 0; line-height: 1.25; }
+.mgr.maxi .mtext span { color: var(--green2); }
+.mgr.gone { opacity: .6; }
+
+/* =========================================================================
+   SIDOPANEL
+   ========================================================================= */
+#panel {
+  width: var(--panel-w); flex: none; background: var(--cream);
+  display: flex; flex-direction: column; min-height: 0; border-left: 4px solid #1d0f27;
+}
+#tabs { display: flex; gap: 3px; padding: 8px 8px 0; background: var(--plum2); }
+#tabs button {
+  flex: 1; border-radius: 12px 12px 0 0; padding: 9px 2px; font-size: 13px;
+  background: #7a5a86; color: #f6e6ff; box-shadow: none;
+}
+#tabs button.on { background: var(--cream); color: var(--ink); }
+#tabs button .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-left: 3px; vertical-align: middle; }
+#tabBody { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
+.sec { background: var(--card); border-radius: 16px; padding: 10px 12px; margin-bottom: 10px; box-shadow: var(--shadow-s); }
+.sec h3 { margin: 0 0 6px; font-size: 16px; display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.sec p { margin: 4px 0; color: var(--ink2); font-weight: 600; font-size: 13px; }
+.sec .btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.muted { color: var(--ink2); font-size: 12px; font-weight: 700; }
+.stars { color: var(--gold2); letter-spacing: -1px; font-size: 13px; }
+.stars i { color: #e3d7c3; font-style: normal; }
+.stars.gold { color: #ffb800; text-shadow: 0 0 6px #ffd76a; }
+.badge { display: inline-block; font-size: 11px; font-weight: 900; padding: 1px 7px; border-radius: 8px; background: #eee3cf; color: var(--ink); vertical-align: middle; }
+.badge.A { background: var(--gold); }
+.badge.B { background: #bfe1f5; }
+.badge.trial { background: #ffd2e4; }
+.badge.seat { background: #c9efcc; color: #1f6b33; }
+.badge.bench { background: #e8e0d4; color: #7a6a5a; }
+.badge.evict { background: #ffd9d4; color: #9b2a22; }
+.maxiIcon { display: inline-flex; width: 18px; height: 18px; vertical-align: middle; }
+.sellerCard { border-top: 1px dashed #e6d7bd; padding: 7px 0; }
+.sellerCard:first-of-type { border-top: 0; }
+.sellerCard .l1 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sellerCard .l1 b { font-size: 14px; }
+.sellerCard .l2 { font-size: 12px; color: var(--ink2); font-weight: 700; margin-top: 2px; }
+.sellerCard .l3 { display: flex; gap: 5px; margin-top: 4px; }
+.cands { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.cand { background: var(--cream2); border-radius: 12px; padding: 7px; text-align: center; display: flex; flex-direction: column; gap: 3px; }
+.cand b { font-size: 14px; }
+.cand .via { font-size: 10px; font-weight: 900; border-radius: 8px; padding: 1px 4px; background: #e0d2f0; color: #5a2a7a; }
+.cand .via.maxi { background: #ffd28f; color: #7a3d00; }
+.cand button { font-size: 12px; padding: 5px 4px; }
+.ladder { display: flex; flex-direction: column; gap: 6px; }
+.lrow { display: flex; align-items: center; gap: 9px; padding: 7px; border-radius: 12px; background: var(--cream2); }
+.lrow.cur { background: #ffe7a8; outline: 3px solid var(--gold); }
+.lrow.owned { opacity: .7; }
+.lrow .ic { width: 40px; height: 40px; flex: none; display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 10px; }
+.lrow .tx { flex: 1; line-height: 1.25; }
+.lrow .tx b { font-size: 14px; }
+.lrow .tx small { display: block; color: var(--ink2); font-weight: 700; font-size: 12px; }
+table.rep { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.rep td { padding: 4px 2px; border-bottom: 1px dashed #eadcc4; }
+table.rep td:last-child, table.rep th:last-child { text-align: right; font-weight: 800; }
+table.rep th { text-align: left; font-size: 12px; color: var(--ink2); }
+table.rep tr.tot td { font-weight: 900; font-size: 14px; border-bottom: 0; color: var(--green2); }
+table.rep tr.sub td { padding-left: 14px; color: var(--ink2); font-size: 12px; }
+.upRow { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed #eadcc4; }
+.upRow:first-of-type { border-top: 0; }
+.upRow .tx { flex: 1; font-weight: 700; font-size: 13px; line-height: 1.25; }
+.upRow .tx small { display: block; color: var(--ink2); font-size: 11px; }
+.upRow button { min-width: 120px; font-size: 12px; }
+.bigPortrait { width: 92px; height: 92px; border-radius: 50%; overflow: hidden; background: #ffe2b0; border: 4px solid #fff; box-shadow: var(--shadow-s); flex: none; }
+.prog { height: 8px; background: #eadfcb; border-radius: 5px; overflow: hidden; }
+.prog i { display: block; height: 100%; background: var(--green); }
+
+/* =========================================================================
+   MODALER, TOASTS, TOOLTIP
+   ========================================================================= */
+#modalLayer { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: rgba(30, 14, 40, .55); }
+#modalLayer.on { display: flex; }
+.modal {
+  background: var(--cream); border-radius: 22px; padding: 18px 20px; width: 520px; max-height: 84vh; overflow-y: auto;
+  box-shadow: 0 10px 0 rgba(0,0,0,.2), 0 20px 50px rgba(0,0,0,.4); animation: pop .25s;
+}
+.modal h2 { margin: 0 0 8px; font-size: 22px; }
+.modal p { font-weight: 600; line-height: 1.45; }
+.modal .mbtns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+.modal textarea { width: 100%; height: 90px; font-family: monospace; font-size: 11px; border-radius: 10px; border: 2px solid #e2d3b6; padding: 6px; user-select: text; }
+.speech { display: flex; gap: 14px; align-items: flex-start; }
+.speech .bubble { background: #fff; border-radius: 18px; padding: 12px 14px; position: relative; font-weight: 700; line-height: 1.45; flex: 1; box-shadow: var(--shadow-s); }
+.speech .bubble::before { content: ""; position: absolute; left: -10px; top: 26px; border: 10px solid transparent; border-right-color: #fff; border-left: 0; }
+.rankList { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rankList ol { margin: 4px 0; padding-left: 22px; font-weight: 700; font-size: 13px; }
+.rankList li span { color: var(--ink2); font-size: 11px; }
+#toasts { position: fixed; right: calc(var(--panel-w) + 22px); bottom: 122px; z-index: 40; display: flex; flex-direction: column-reverse; gap: 8px; width: 330px; pointer-events: none; }
+.toast {
+  pointer-events: auto; background: var(--card); border-radius: 16px; padding: 10px 12px; box-shadow: var(--shadow);
+  border-left: 7px solid var(--gold); animation: slideIn .3s; font-weight: 700; font-size: 13px;
+}
+.toast b { display: block; font-size: 15px; margin-bottom: 2px; }
+.toast.good { border-left-color: var(--green); }
+.toast.bad { border-left-color: var(--red); }
+.toast button { margin-top: 6px; font-size: 12px; }
+.toast.out { animation: slideOut .35s forwards; }
+#tooltip {
+  position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 300px;
+  background: #2b1838; color: #fff; padding: 8px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;
+  white-space: pre-line; line-height: 1.4; box-shadow: 0 6px 18px rgba(0,0,0,.35);
+}
+#tooltip b { color: var(--gold); }
+
+/* =========================================================================
+   ANIMATIONER
+   ========================================================================= */
+@keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slideOut { to { transform: translateX(40px); opacity: 0; } }
+@keyframes floatUp { 0% { transform: translate(-50%, 0) scale(.8); opacity: 0; } 15% { opacity: 1; transform: translate(-50%, -8px) scale(1.1); } 100% { transform: translate(-50%, -52px) scale(1); opacity: 0; } }
+@keyframes bub { 0% { opacity: 0; transform: translate(-50%, 6px); } 15% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -8px); } }
+@keyframes knock { 0%,100% { transform: none; } 50% { transform: translateX(1.5px); } }
+@keyframes legA { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@keyframes legB { from { transform: translateY(-3px); } to { transform: translateY(0); } }
+@keyframes bob { from { transform: translateY(0); } to { transform: translateY(-1.5px); } }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 50% { transform: translateX(2px); } }
+@keyframes coin { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-40px); opacity: 0; } }
+@keyframes flicker { 0%,100% { opacity: 1; } 40% { opacity: .75; } 70% { opacity: .9; } }
+@keyframes count { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-18deg); } }
+.flick { animation: flicker 1.6s infinite; }
+.counting { animation: count .35s infinite; transform-origin: 4px 2px; transform-box: fill-box; }
+</style>
+</head>
+<body>
+
+<header id="topbar">
+  <div class="logo" id="logo"></div>
+  <div class="stat cash" data-tip="units"><small>Kassa</small><span id="tCash">0 kr</span></div>
+  <div class="stat"><small>Inkomst</small><span id="tIncome">0 kr/s</span></div>
+  <div class="stat" data-tip="week"><small id="tWeekLbl">Vecka 1</small><span id="tWeek">3:00</span></div>
+  <div class="stat" data-tip="rykte"><small>Rykte</small><span id="tRykte">★ 0</span></div>
+  <div class="stat"><small>Stad</small><span id="tCity">Göteborg</span></div>
+  <div id="effects"></div>
+  <div id="buyMode" data-tip="buymode"></div>
+  <button id="settingsBtn" data-act="settings" title="Inställningar">⚙</button>
+</header>
+
+<main id="main">
+  <section id="left">
+    <div id="scene"><div id="world"></div></div>
+    <div id="managers"></div>
+  </section>
+  <aside id="panel">
+    <nav id="tabs"></nav>
+    <div id="tabBody"></div>
+  </aside>
+</main>
+
+<div id="toasts"></div>
+<div id="modalLayer"></div>
+<div id="tooltip"></div>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   CONFIG – ändra fritt här! Säljare, namn, priser och all balans.
+   ========================================================================= */
+const CONFIG = {
+  // Startpersonalen. pct = säljprocent (chansen att sälja per ÖPPNAD dörr), t.ex. 0.32 = 32 %.
+  // pct: null betyder att värdet slumpas mellan startPctRange när spelet startas.
+  // maxi: true = säljaren är värvad av Maxi ("Maxis säljare").
+  sellers: [
+    { name: 'Alle',    pct: null, maxi: true  },
+    { name: 'Hugo',    pct: null, maxi: true  },
+    { name: 'Liam',    pct: null, maxi: true  },
+    { name: 'Mostafa', pct: null, maxi: false },
+    { name: 'Zion',    pct: null, maxi: false },
+    { name: 'Gabbe',   pct: null, maxi: false },
+    { name: 'Ramtin',  pct: null, maxi: false },
+    { name: 'Milan',   pct: null, maxi: false },
+    { name: 'Shwan',   pct: null, maxi: false },
+    { name: 'Daryan',  pct: null, maxi: false },
+    { name: 'Yvonne',  pct: null, maxi: false },
+    { name: 'Omar',    pct: null, maxi: false },
+  ],
+  startPctRange: [0.10, 0.45],
+
+  // Kandidater som dyker upp varje spelvecka.
+  candidateNames: ['Elias', 'Noah', 'Leila', 'Adam', 'Sara', 'Kevin', 'Amir', 'Nora', 'Isak', 'Melvin'],
+  candidatePctRange: [0.10, 0.45],
+  candidatesPerWeek: 3,
+  viaSellerChance: 0.35,          // chans att en (icke-Maxi) kandidat kommer "via" en befintlig säljare
+  hireCost: { base: 400, incomeSeconds: 40, exponent: 2.4 }, // kostnad = (base + inkomst/s × sek) × (pct/25 %)^exp
+
+  // Dörrarna
+  doors: { baseOpen: 0.25, maxOpen: 0.50, maxSalePct: 0.60 },
+
+  // Ekonomin – räknas vid varje försäljning
+  economy: {
+    commissionA: 0.30,
+    commissionB: 0.25,
+    costBasis: 0.20,       // dras före Maxis andel, men går tillbaka till ägarna (vinst)
+    maxiOwn: 0.175,        // Maxis andel på hans egna säljare
+    maxiOther: 0.10,       // Maxis andel på övriga
+    coach: 0.05,           // coachens andel av försäljningspriset
+    recruitBonus: 0.10,    // värvarens andel av rekryteringens försäljningspris första veckan
+  },
+
+  week: { length: 180, aTeamSize: 6 },  // 1 spelvecka = 3 minuter
+
+  upgrades: { growth: 1.13, milestones: [10, 25, 50, 100, 200], maxLevel: 800 },
+
+  // Områden: köpkraft = buyPowerStep^index. Kostnader för upplåsning per index.
+  area: {
+    unlockCost: [0, 5e3, 5e4, 5e5, 5e6, 5e7, 5e8, 5e9],
+    upgradeBase: [25, 300, 1.8e3, 1.1e4, 6.5e4, 4e5, 2.4e6, 1.5e7],
+    buyPowerStep: 3,
+    knockBase: 1.1,         // knackningar per sekund per säljare på nivå 1
+    knockPerLevel: 0.10,    // +10 % dörrtakt per nivå (linjärt), ×2 vid milstolpar
+    bagBase: 300,           // säljpåsens tak på nivå 1 (× köpkraft × produktfaktor)
+    bagGrowth: 1.10,        // påsens tak växer ×1,10 per nivå
+    seatsBase: 3,           // säljarplatser per område
+    seatsAt: [10, 25, 50, 100], // +1 plats vid dessa nivåer
+  },
+
+  // Bilen
+  car: {
+    ladder: [
+      { name: 'Arvins bil',     seats: 3,  cost: 0 },
+      { name: 'Kombi',          seats: 5,  cost: 7e3 },
+      { name: 'Minibuss',       seats: 8,  cost: 4e5 },
+      { name: 'Buss',           seats: 12, cost: 4e7 },
+      { name: 'Dubbeldäckare',  seats: 20, cost: 4e9 },
+    ],
+    speedBase: 0.85,        // områden per sekund
+    speedPerLevel: 0.06,
+    speedCostBase: 35,
+    capBase: 160,           // kr per tur
+    capGrowth: 1.115,
+    capCostBase: 45,
+    stopTime: 0.35,         // sek per stopp
+  },
+
+  // Kassan hemma
+  kassa: { rateBase: 45, rateGrowth: 1.115, costBase: 40 },
+
+  // Produkter (global stege). price = baspris per klase.
+  products: [
+    { id: 'vit',     name: 'Vita klasar',                   price: 200,  cost: 0 },
+    { id: 'farg',    name: 'Färgade klasar (vinröd/nougat/sand)', price: 260, cost: 3e3 },
+    { id: 'doft',    name: 'Doftljus',                      price: 400,  cost: 6e4 },
+    { id: 'block',   name: 'Blockljus i presentask',        price: 700,  cost: 1.2e6 },
+    { id: 'lyx',     name: 'Lyxdoftljus i glas',            price: 1200, cost: 3e7 },
+    { id: 'advent',  name: 'Adventspaket',                  price: 2500, cost: 6e8 },
+    { id: 'sig',     name: 'LjusCo Signature',              price: 5000, cost: 1.5e10 },
+  ],
+
+  // Maxi – teamledare
+  maxi: { pepLevels: [0.05, 0.075, 0.10, 0.125, 0.15], pepCosts: [2e4, 4e5, 8e6, 1.6e8] },
+
+  // Säljcoach
+  coach: {
+    hireCost: 1.5e4,
+    capBase: 0.35, capStep: 0.05, capMaxLevel: 5, capCostBase: 4e4, capCostMult: 12,
+    trainBase: 0.01, trainStep: 0.005, trainMaxLevel: 5, trainCostBase: 3e4, trainCostMult: 12,
+  },
+
+  // Förmågor (Soran & Arvin). duration/cooldown i sekunder. Uppgradering: +durStep, −cdStep (andel) per nivå.
+  abilities: {
+    pep:     { name: 'Pepptalk',          who: 'soran', duration: 60, cooldown: 300, durStep: 10, cdStep: 0.08, maxLevel: 5, costBase: 3e3,  costMult: 9 },
+    recruit: { name: 'Värvningsrunda',    who: 'soran', duration: 0,  cooldown: 600, durStep: 0,  cdStep: 0.10, maxLevel: 5, costBase: 5e3,  costMult: 9 },
+    gas:     { name: 'Gasa på',           who: 'arvin', duration: 60, cooldown: 300, durStep: 10, cdStep: 0.08, maxLevel: 5, costBase: 2e3,  costMult: 9 },
+    gold:    { name: 'Hittar guldgatan',  who: 'arvin', duration: 60, cooldown: 480, durStep: 10, cdStep: 0.08, maxLevel: 5, costBase: 4e3,  costMult: 9 },
+  },
+  pepptalkBoost: 1.25,
+  recruitRoundPct: [0.25, 0.45],
+  gasBoost: 3,
+  goldBoost: 2,
+
+  // Slumphändelser
+  events: { minGap: 120, maxGap: 240 },
+
+  // Prestige / Ny stad
+  prestige: {
+    minEarned: 1e10,     // så mycket måste man ha tjänat i staden innan man kan expandera
+    unit: 1e9,           // Rykte = floor(k × sqrt(intjänat / unit))
+    k: 1.6,
+    perRykte: 0.20,      // +20 % inkomst per Rykte-stjärna
+  },
+
+  // Städer – 8 riktiga områden per stad + färgpalett
+  cities: [
+    { name: 'Göteborg',  areas: ['Majorna', 'Hisingen', 'Frölunda', 'Angered', 'Kortedala', 'Bergsjön', 'Askim', 'Örgryte'],
+      sky: ['#ff9b6e', '#ffdca3'], ground: '#77b85f', walls: ['#e8c15a', '#b5523b', '#9aa9bd', '#e07a5f', '#d9b48f', '#4fa3a5', '#f4efe2', '#efdcb8'] },
+    { name: 'Borås',     areas: ['Norrby', 'Hässleholmen', 'Sjöbo', 'Hulta', 'Byttorp', 'Brämhult', 'Trandared', 'Göta'],
+      sky: ['#79b4e6', '#d6ecf8'], ground: '#5fae6a', walls: ['#d6a2c8', '#a65d4a', '#b2c4d6', '#7fb069', '#e8c07d', '#5d8fb5', '#fff3d6', '#e0cba8'] },
+    { name: 'Uppsala',   areas: ['Gottsunda', 'Gränby', 'Sävja', 'Eriksberg', 'Luthagen', 'Svartbäcken', 'Sunnersta', 'Kåbo'],
+      sky: ['#9d8bd8', '#f6c9d9'], ground: '#80b76a', walls: ['#e7b36a', '#a24c3c', '#c7c0d8', '#d9776b', '#c9a98f', '#6aa79a', '#f7eadd', '#e6c79d'] },
+    { name: 'Stockholm', areas: ['Rinkeby', 'Tensta', 'Hägersten', 'Farsta', 'Vällingby', 'Södermalm', 'Bromma', 'Östermalm'],
+      sky: ['#41609e', '#f6b26b'], ground: '#5d9e5a', walls: ['#d8d0c0', '#c0634a', '#8fa3bf', '#e2a35a', '#c2b59b', '#d27d4e', '#f1e6cf', '#e9d29b'] },
+    { name: 'Malmö',     areas: ['Rosengård', 'Möllevången', 'Hyllie', 'Fosie', 'Husie', 'Kirseberg', 'Limhamn', 'Bellevue'],
+      sky: ['#4bb3c4', '#fbe3a8'], ground: '#86c06b', walls: ['#e9a0a0', '#b85c47', '#a7c3cf', '#efb85e', '#d4b896', '#4e9fa6', '#fbf2e3', '#f0d9a6'] },
+  ],
+
+  autosaveSeconds: 10,
+  saveKey: 'ljusco-tycoon-save-v1',
+
+  // Roliga repliker
+  fireQuips: [
+    '"Lugnt, jag startar eget. LjusCo 2.0, vi ses i konkurrensen!"',
+    '"Ska jag lämna tillbaka väskan också?"',
+    '"Mamma kommer bli SÅ besviken..."',
+    '"Okej. Men vita klasar säljer sig inte själva!"',
+    '"Jag visste att den där dörren i Majorna skulle bli min sista."',
+    '"Tack för allt. Jag tar med mig en klase som minne."',
+  ],
+  rankQuips: [
+    'Soran har räknat klasar hela natten. Här är veckans ranking!',
+    'Arvin har tankat bilen, och Soran har sorterat listan. Så här ser det ut:',
+    'Kaffe, kanelbullar och kalla siffror. Veckans ranking är klar!',
+    'Ny vecka, nya chanser! Så här blev lagen:',
+  ],
+  maxiPepLines: ['"Kom igen grabbar, en dörr till!"', '"Ingen säljer klasar som ni!"', '"Ett nej är bara ett ja som inte hänt än!"'],
+};
+
+/* =========================================================================
+   HJÄLPFUNKTIONER
+   ========================================================================= */
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function gauss() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+
+// Färgverktyg för variationer av husfärger
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16); let r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6; }
+  return [h * 360, s * 100, l * 100];
+}
+function shade(hex, dl = 0, dh = 0, ds = 0) { const [h, s, l] = hexToHsl(hex); return `hsl(${(h + dh + 360) % 360},${clamp(s + ds, 0, 100)}%,${clamp(l + dl, 0, 100)}%)`; }
+
+/* ---- Svensk talformatering: 1 234 kr, 12,3 tn, 3,4 mn, 5,6 md ---- */
+const UNITS = [[1e21, 'trd'], [1e18, 'tr'], [1e15, 'bd'], [1e12, 'bn'], [1e9, 'md'], [1e6, 'mn'], [1e3, 'tn']];
+// tn = tusen, mn = miljoner, md = miljarder, bn = biljoner, bd = biljarder, tr = triljoner
+function group(n) { return String(Math.floor(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+function fmt(n) {
+  if (!isFinite(n)) return '∞';
+  const neg = n < 0; n = Math.abs(n); let s;
+  if (n < 1e4) s = group(n);
+  else {
+    const u = UNITS.find(u => n >= u[0]);
+    if (!u) s = group(n);
+    else { const v = n / u[0]; s = String(v >= 100 ? Math.floor(v) : (Math.floor(v * 10) / 10).toFixed(1).replace(/\.0$/, '')).replace('.', ',') + ' ' + u[1]; }
+    if (n >= 1e24) s = n.toExponential(2).replace('.', ',');
+  }
+  return (neg ? '−' : '') + s;
+}
+const kr = n => fmt(n) + ' kr';
+function krExact(n) { // med ören för små belopp (rapporter)
+  if (Math.abs(n) < 1e4) return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' kr';
+  return kr(n);
+}
+const pctStr = (p, d = 0) => (p * 100).toFixed(d).replace('.', ',') + ' %';
+function timeStr(sec) { sec = Math.max(0, Math.ceil(sec)); const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + String(s).padStart(2, '0'); }
+
+/* ---- Stjärnor ---- */
+function starCount(p) { const v = Math.round(p * 100); if (v >= 46) return 6; if (v >= 39) return 5; if (v >= 31) return 4; if (v >= 24) return 3; if (v >= 17) return 2; return 1; }
+function starsHTML(p) { const c = starCount(p); if (c === 6) return '<span class="stars gold">★★★★★</span>'; return `<span class="stars">${'★'.repeat(c)}<i>${'★'.repeat(5 - c)}</i></span>`; }
+
+/* =========================================================================
+   SPELSTATE – allt som sparas ligger i S
+   ========================================================================= */
+let S = null;
+let SIM = false;            // true när balans-simuleringen körs (ingen UI)
+
+function makeSeller(name, pct, maxi) {
+  return {
+    id: S ? S.nextId++ : 0, name, pct, maxi: !!maxi,
+    team: 'B', rank: 99, area: 0, pin: 0, seated: false,
+    trialUntil: 0, recruitedBy: null, recruitUntil: 0, evictedUntil: 0,
+    acc: Math.random(),
+    week: { sold: 0, worked: 0, revenue: 0, bonus: 0 },
+    total: { sold: 0, worked: 0, revenue: 0 },
+  };
+}
+
+function newAreas() { return CONFIG.area.unlockCost.map((c, i) => ({ unlocked: i === 0, level: 1, bag: 0 })); }
+function newAbilities() { const o = {}; for (const k in CONFIG.abilities) o[k] = { lvl: 0, until: -1, ready: 0 }; return o; }
+function emptyReport() { return { gross: 0, commission: 0, maxiOwn: 0, maxiOther: 0, coach: 0, recruit: 0, profit: 0, rykteBonus: 0, clusters: 0 }; }
+
+function newGame() {
+  S = {
+    v: 1, time: 0, cash: 0, cityIdx: 0, rykte: 0, cityEarned: 0, totalEarned: 0,
+    areas: newAreas(), product: 0,
+    car: { tier: 0, speedLvl: 1, capLvl: 1, pos: 0, target: 0, phase: 'idle', timer: 0, load: 0, stop: -1 },
+    kassa: { lvl: 1, buffer: 0 },
+    sellers: [], nextId: 1,
+    maxi: { active: true, pepLvl: 0 },
+    coach: { hired: false, capLvl: 0, trainLvl: 0 },
+    abilities: newAbilities(), goldArea: -1,
+    effects: [], nextEventAt: rand(CONFIG.events.minGap, CONFIG.events.maxGap),
+    week: { n: 1, t: 0 },
+    report: { cur: emptyReport(), last: null, all: emptyReport() },
+    candidates: [], nameUses: {},
+    tutorialDone: false, buyMode: 1, tab: 'personal',
+    stats: { prestiges: 0, hired: 0, fired: 0, events: 0, unlocks: 0 },
+    incomeRate: 0, incomeSamples: [], sampleAcc: 0, sampleSum: 0,
+  };
+  const [lo, hi] = CONFIG.startPctRange;
+  for (const c of CONFIG.sellers) S.sellers.push(makeSeller(c.name, c.pct != null ? c.pct : rand(lo, hi), c.maxi));
+  // Vecka 1: A-laget = de 6 bästa efter säljprocent
+  [...S.sellers].sort((a, b) => b.pct - a.pct).forEach((s, i) => { s.team = i < CONFIG.week.aTeamSize ? 'A' : 'B'; s.rank = i; });
+  newCandidates(false);
+  seatsDirty = true;
+}
+
+const city = () => CONFIG.cities[S.cityIdx];
+const areaName = i => city().areas[i];
+
+/* =========================================================================
+   HÄRLEDDA VÄRDEN (uppgraderingar, takt, kapacitet)
+   ========================================================================= */
+const milestonesHit = L => CONFIG.upgrades.milestones.filter(m => L >= m).length;
+const nextMilestone = L => CONFIG.upgrades.milestones.find(m => L < m);
+function levelCost(base, L) { return base * Math.pow(CONFIG.upgrades.growth, L - 1); }
+function bulkCost(base, L, n) { const g = CONFIG.upgrades.growth; return levelCost(base, L) * (Math.pow(g, n) - 1) / (g - 1); }
+function bulkInfo(base, L, mode = S.buyMode) {
+  const room = CONFIG.upgrades.maxLevel - L; if (room <= 0) return { n: 0, cost: Infinity };
+  let n;
+  if (mode === 'max') { const g = CONFIG.upgrades.growth; n = Math.floor(Math.log(S.cash * (g - 1) / levelCost(base, L) + 1) / Math.log(g)); n = clamp(n || 0, 1, room); }
+  else n = Math.min(mode, room);
+  return { n, cost: bulkCost(base, L, n) };
+}
+
+const buyPower = i => Math.pow(CONFIG.area.buyPowerStep, i);
+const product = () => CONFIG.products[S.product];
+const productFactor = () => product().price / CONFIG.products[0].price;
+function knockRateAt(L) { const c = CONFIG.area; return c.knockBase * (1 + c.knockPerLevel * (L - 1)) * Math.pow(2, milestonesHit(L)); }
+const knockRate = i => knockRateAt(S.areas[i].level);
+function bagCapAt(i, L) { const c = CONFIG.area; return c.bagBase * buyPower(i) * productFactor() * Math.pow(c.bagGrowth, L - 1); }
+const bagCap = i => bagCapAt(i, S.areas[i].level);
+const areaSeatsAt = L => CONFIG.area.seatsBase + CONFIG.area.seatsAt.filter(x => L >= x).length;
+const areaSeats = i => areaSeatsAt(S.areas[i].level);
+
+function carSpeedAt(L) { const c = CONFIG.car; return c.speedBase * (1 + c.speedPerLevel * (L - 1)) * Math.pow(2, milestonesHit(L)); }
+function carCapAt(L) { const c = CONFIG.car; return c.capBase * Math.pow(c.capGrowth, L - 1) * Math.pow(2, milestonesHit(L)); }
+function kassaRateAt(L) { const c = CONFIG.kassa; return c.rateBase * Math.pow(c.rateGrowth, L - 1) * Math.pow(2, milestonesHit(L)); }
+const carSpeed = () => carSpeedAt(S.car.speedLvl) * (abilityActive('gas') ? CONFIG.gasBoost : 1);
+const carCap = () => carCapAt(S.car.capLvl);
+const kassaRate = () => kassaRateAt(S.kassa.lvl);
+const carSeats = () => CONFIG.car.ladder[S.car.tier].seats;
+const rykteMult = () => 1 + CONFIG.prestige.perRykte * S.rykte;
+const maxiPep = () => S.maxi.active ? CONFIG.maxi.pepLevels[S.maxi.pepLvl] : 0;
+const coachCap = () => CONFIG.coach.capBase + CONFIG.coach.capStep * S.coach.capLvl;
+const coachTrain = () => CONFIG.coach.trainBase + CONFIG.coach.trainStep * S.coach.trainLvl;
+const unlockedCount = () => S.areas.filter(a => a.unlocked).length;
+
+/* ---- Effekter (events + förmågor) ---- */
+const effect = (type, area) => S.effects.find(e => e.type === type && (area === undefined || e.area === area));
+function abilityActive(k) { return S.abilities[k].until > S.time; }
+function abilityDuration(k) { const c = CONFIG.abilities[k]; return c.duration + c.durStep * S.abilities[k].lvl; }
+function abilityCooldown(k) { const c = CONFIG.abilities[k]; return c.cooldown * (1 - c.cdStep * S.abilities[k].lvl); }
+const abilityReady = k => S.time >= S.abilities[k].ready;
+
+function openChance(i) {
+  let o = CONFIG.doors.baseOpen;
+  if (effect('lonedag')) o *= 1.5;
+  if (effect('regn')) o *= 0.7;
+  if (abilityActive('gold') && S.goldArea === i) o *= CONFIG.goldBoost;
+  return Math.min(o, CONFIG.doors.maxOpen);
+}
+function salePct(s, i) {
+  let p = s.pct;
+  if (S.maxi.active) p *= 1 + maxiPep();
+  if (abilityActive('pep')) p *= CONFIG.pepptalkBoost;
+  if (i !== undefined && effect('granne', i)) p *= 2;
+  return Math.min(p, CONFIG.doors.maxSalePct);
+}
+function priceMult() { let m = 1; if (effect('jul')) m *= 2; if (effect('slut')) m *= 0.5; return m; }
+const salePrice = i => product().price * buyPower(i) * priceMult();
+
+/* =========================================================================
+   EKONOMI – fördelningen räknas vid varje försäljning
+   ========================================================================= */
+function splitSale(price, seller) {
+  const E = CONFIG.economy;
+  const commission = price * (seller.team === 'A' ? E.commissionA : E.commissionB);
+  const basis = (price - commission) * (1 - E.costBasis);        // 20 % kostnadsavdrag (bara beräkningsgrund)
+  let maxiOwn = 0, maxiOther = 0;
+  if (S.maxi.active) { if (seller.maxi) maxiOwn = basis * E.maxiOwn; else maxiOther = basis * E.maxiOther; }
+  const coach = S.coach.hired ? price * E.coach : 0;
+  let recruit = 0, recruiter = null;
+  if (seller.recruitedBy != null && seller.recruitUntil > S.time) {
+    recruiter = S.sellers.find(x => x.id === seller.recruitedBy);
+    if (recruiter) recruit = price * E.recruitBonus;
+  }
+  const profit = price - commission - maxiOwn - maxiOther - coach - recruit;
+  return { commission, maxiOwn, maxiOther, coach, recruit, recruiter, profit };
+}
+
+function processSale(s, i, qty, ignoreCap) {
+  const price = salePrice(i) * qty;
+  const sp = splitSale(price, s);
+  const gain = sp.profit;
+  S.areas[i].bag += gain;
+  for (const r of [S.report.cur, S.report.all]) {
+    r.gross += price; r.commission += sp.commission; r.maxiOwn += sp.maxiOwn; r.maxiOther += sp.maxiOther;
+    r.coach += sp.coach; r.recruit += sp.recruit; r.profit += sp.profit; r.clusters += qty;
+  }
+  if (sp.recruiter) sp.recruiter.week.bonus += sp.recruit;
+  s.week.sold += qty; s.week.revenue += price; s.total.sold += qty; s.total.revenue += price;
+  if (!SIM) VIS.onSale(s, i, gain);
+  return gain;
+}
+
+/* =========================================================================
+   BILPLATSER – vilka säljare som åker med
+   ========================================================================= */
+let seatsDirty = true, seatTimer = 0;
+
+function sellerOrder() {
+  return [...S.sellers].sort((a, b) => (b.pin === 1) - (a.pin === 1) || (a.team === 'A' ? 0 : 1) - (b.team === 'A' ? 0 : 1) || a.rank - b.rank || b.pct - a.pct);
+}
+function bestAreaWithRoom(counts) {
+  for (let i = S.areas.length - 1; i >= 0; i--) if (S.areas[i].unlocked && counts[i] < areaSeats(i)) return i;
+  return -1;
+}
+function assignSeats() {
+  seatsDirty = false;
+  const seats = carSeats(); let used = 0;
+  const counts = S.areas.map(() => 0);
+  for (const s of S.sellers) s.seated = false;
+  for (const s of sellerOrder()) {
+    if (used >= seats) break;
+    if (s.pin === -1) continue;
+    if (!S.areas[s.area] || !S.areas[s.area].unlocked) s.area = 0;
+    if (counts[s.area] >= areaSeats(s.area)) { const alt = bestAreaWithRoom(counts); if (alt < 0) continue; s.area = alt; }
+    s.seated = true; counts[s.area]++; used++;
+  }
+}
+// Sätter de bästa säljarna i områdena med högst köpkraft
+function autoDistribute() {
+  assignSeats();
+  const seated = S.sellers.filter(s => s.seated).sort((a, b) => b.pct - a.pct);
+  const counts = S.areas.map(() => 0);
+  for (const s of seated) { const i = bestAreaWithRoom(counts); if (i >= 0) { s.area = i; counts[i]++; } }
+  seatsDirty = true;
+}
+function areaWorkers(i) { return S.sellers.filter(s => s.seated && s.area === i); }
+
+/* =========================================================================
+   SPELLOGIK – en tick
+   ========================================================================= */
+function update(dt) {
+  S.time += dt;
+
+  // Veckotimer
+  S.week.t += dt;
+  if (S.week.t >= CONFIG.week.length) { S.week.t -= CONFIG.week.length; weekEnd(); }
+
+  // Effekter som gått ut
+  if (S.effects.length) {
+    const before = S.effects.length;
+    S.effects = S.effects.filter(e => e.until > S.time);
+    if (S.effects.length !== before) seatsDirty = true;
+  }
+
+  // Slumphändelser
+  if (S.time >= S.nextEventAt) { triggerRandomEvent(); S.nextEventAt = S.time + rand(CONFIG.events.minGap, CONFIG.events.maxGap); }
+
+  seatTimer += dt;
+  if (seatsDirty || seatTimer > 1) { seatTimer = 0; assignSeats(); }
+
+  updateSellers(dt);
+  updateCar(dt);
+  updateKassa(dt);
+  sampleIncome(dt);
+}
+
+function updateSellers(dt) {
+  const n = S.areas.length;
+  const rate = [], open = [], full = [];
+  for (let i = 0; i < n; i++) {
+    const a = S.areas[i]; if (!a.unlocked) continue;
+    rate[i] = knockRate(i); open[i] = openChance(i); full[i] = a.bag >= bagCap(i);
+  }
+  for (const s of S.sellers) {
+    if (!s.seated) continue;
+    if (s.evictedUntil > S.time) continue;
+    const i = s.area;
+    if (full[i]) { if (!SIM) VIS.outcome(s, 'full'); continue; }
+    s.week.worked += dt; s.total.worked += dt;
+    s.acc += rate[i] * dt;
+    const k = Math.floor(s.acc); if (k <= 0) continue;
+    s.acc -= k;
+    const p = salePct(s, i), o = open[i];
+    let opened = 0, sales = 0;
+    if (k <= 80) { for (let j = 0; j < k; j++) if (Math.random() < o) { opened++; if (Math.random() < p) sales++; } }
+    else { const q = o * p, mean = k * q; sales = Math.max(0, Math.round(mean + gauss() * Math.sqrt(mean * (1 - q)))); opened = Math.round(k * o); }
+    if (sales > 0) { processSale(s, i, sales, false); if (S.areas[i].bag >= bagCap(i)) full[i] = true; }
+    if (!SIM) VIS.outcome(s, sales > 0 ? 'sale' : opened > 0 ? 'no' : 'closed');
+  }
+}
+
+/* ---- Bilen: åker till områdena i tur och ordning och hämtar pengar ---- */
+function nextAreaWithMoney(after) {
+  for (let i = after + 1; i < S.areas.length; i++) if (S.areas[i].unlocked && S.areas[i].bag > 0.5) return i;
+  return -1;
+}
+function updateCar(dt) {
+  const c = S.car;
+  if (effect('punka')) return;
+  let guard = 0;
+  while (dt > 1e-6 && guard++ < 40) {
+    if (c.phase === 'idle') {
+      const nx = nextAreaWithMoney(-1);
+      if (nx < 0) return;
+      c.target = nx + 1; c.phase = 'move';
+    } else if (c.phase === 'move') {
+      const sp = carSpeed(), dist = Math.abs(c.target - c.pos), step = sp * dt;
+      if (step >= dist) {
+        dt -= dist / sp; c.pos = c.target;
+        c.timer = CONFIG.car.stopTime;
+        c.phase = c.target === 0 ? 'unload' : 'load';
+      } else { c.pos += Math.sign(c.target - c.pos) * step; dt = 0; }
+    } else if (c.phase === 'load' || c.phase === 'unload') {
+      const t = Math.min(dt, c.timer); c.timer -= t; dt -= t;
+      if (c.timer > 1e-6) continue;
+      if (c.phase === 'load') {
+        const i = Math.round(c.pos) - 1, a = S.areas[i];
+        const take = Math.min(a.bag, carCap() - c.load);
+        a.bag -= take; c.load += take;
+        const nx = c.load < carCap() - 0.5 ? nextAreaWithMoney(i) : -1;
+        c.target = nx >= 0 ? nx + 1 : 0; c.phase = 'move';
+      } else {
+        S.kassa.buffer += c.load;
+        if (!SIM && c.load > 0) VIS.unload(c.load);
+        c.load = 0; c.phase = 'idle';
+      }
+    }
+  }
+}
+
+function updateKassa(dt) {
+  const k = S.kassa; if (k.buffer <= 0) return;
+  const amt = Math.min(k.buffer, kassaRate() * dt);
+  k.buffer -= amt;
+  // Rykte = permanent inkomstmultiplikator, läggs på när Soran räknar in pengarna
+  const bonus = amt * (rykteMult() - 1);
+  S.report.cur.rykteBonus += bonus; S.report.all.rykteBonus += bonus;
+  addCash(amt + bonus);
+}
+function addCash(a) { S.cash += a; S.cityEarned += a; S.totalEarned += a; S.sampleAcc += a; }
+
+function sampleIncome(dt) {
+  S.sampleSum += dt;
+  if (S.sampleSum >= 1) {
+    S.incomeSamples.push(S.sampleAcc / S.sampleSum); S.sampleAcc = 0; S.sampleSum = 0;
+    if (S.incomeSamples.length > 15) S.incomeSamples.shift();
+    S.incomeRate = S.incomeSamples.reduce((a, b) => a + b, 0) / S.incomeSamples.length;
+  }
+}
+
+/* =========================================================================
+   VECKOSLUT: ranking, coachträning, nya kandidater
+   ========================================================================= */
+const perMin = s => s.week.worked > 0 ? s.week.sold / (s.week.worked / 60) : 0;
+
+function weekEnd() {
+  const W = CONFIG.week;
+  // 1) Coachen tränar hela B-laget (även de på bänken)
+  const trained = [];
+  if (S.coach.hired) {
+    for (const s of S.sellers) if (s.team === 'B' && s.pct < coachCap()) {
+      const before = s.pct; s.pct = Math.min(coachCap(), s.pct + coachTrain()); trained.push({ name: s.name, gain: s.pct - before });
+    }
+  }
+  // 2) Ranking efter klasar per arbetad minut
+  const trial = S.sellers.filter(s => s.trialUntil > S.time);
+  const rest = S.sellers.filter(s => !(s.trialUntil > S.time));
+  const idle = rest.filter(s => s.week.worked < 5);          // har inte jobbat → behåller placering
+  const workers = rest.filter(s => s.week.worked >= 5).sort((a, b) => perMin(b) - perMin(a) || b.pct - a.pct);
+  const slots = Math.max(0, W.aTeamSize - idle.filter(s => s.team === 'A').length);
+  const ranking = workers.map(s => ({ s, rate: perMin(s), sold: s.week.sold }));
+  workers.forEach((s, i) => { s.team = i < slots ? 'A' : 'B'; });
+  for (const s of trial) s.team = 'A';
+  // Ny rangordning (för bilplatser): A-lag först efter prestation, sedan B
+  const order = [...S.sellers].sort((a, b) => (a.team === 'A' ? 0 : 1) - (b.team === 'A' ? 0 : 1) || (b.week.worked >= 5 ? perMin(b) : -1) - (a.week.worked >= 5 ? perMin(a) : -1) || a.rank - b.rank);
+  order.forEach((s, i) => s.rank = i);
+
+  // 3) Rapport och veckostatistik
+  S.report.last = { ...S.report.cur, week: S.week.n };
+  S.report.cur = emptyReport();
+  const info = { week: S.week.n, ranking, idle: idle.map(s => s.name), trial: trial.map(s => s.name), trained };
+  for (const s of S.sellers) s.week = { sold: 0, worked: 0, revenue: 0, bonus: 0 };
+  S.week.n++;
+  newCandidates(false);
+  seatsDirty = true;
+  if (!SIM) UI.rankingPopup(info);
+}
+
+/* =========================================================================
+   REKRYTERING, SPARKA, FLYTTA
+   ========================================================================= */
+function nextName() {
+  const pool = CONFIG.candidateNames;
+  const minUse = Math.min(...pool.map(n => S.nameUses[n] || 0));
+  const name = pick(pool.filter(n => (S.nameUses[n] || 0) === minUse));
+  S.nameUses[name] = (S.nameUses[name] || 0) + 1;
+  return S.nameUses[name] > 1 ? `${name} ${S.nameUses[name]}` : name;
+}
+function hireCostFor(p) {
+  const h = CONFIG.hireCost;
+  return Math.round((h.base + S.incomeRate * h.incomeSeconds) * Math.pow(p / 0.25, h.exponent) / 10) * 10;
+}
+function makeCandidate(range, via) {
+  const p = rand(range[0], range[1]);
+  return { name: nextName(), pct: p, cost: hireCostFor(p), via };
+}
+function newCandidates(soranRound) {
+  const range = soranRound ? CONFIG.recruitRoundPct : CONFIG.candidatePctRange;
+  const list = [];
+  const maxiSlot = !soranRound && S.maxi.active ? Math.floor(Math.random() * CONFIG.candidatesPerWeek) : -1;
+  for (let k = 0; k < CONFIG.candidatesPerWeek; k++) {
+    let via = null;
+    if (k === maxiSlot) via = { type: 'maxi' };
+    else if (Math.random() < CONFIG.viaSellerChance && S.sellers.length) { const r = pick(S.sellers); via = { type: 'seller', id: r.id, name: r.name }; }
+    list.push(makeCandidate(range, via));
+  }
+  S.candidates = list;
+}
+function hire(idx) {
+  const c = S.candidates[idx]; if (!c || S.cash < c.cost) return false;
+  S.cash -= c.cost;
+  const s = makeSeller(c.name, c.pct, c.via && c.via.type === 'maxi' && S.maxi.active);
+  s.team = 'A'; s.trialUntil = S.time + CONFIG.week.length; s.rank = -1;   // provvecka i A-laget
+  if (c.via && c.via.type === 'seller' && S.sellers.some(x => x.id === c.via.id)) { s.recruitedBy = c.via.id; s.recruitUntil = S.time + CONFIG.week.length; }
+  S.sellers.push(s);
+  S.candidates.splice(idx, 1);
+  S.stats.hired++;
+  seatsDirty = true;
+  if (!SIM) UI.toast(`${esc(s.name)} är anställd!`, `Provvecka i A-laget. ${s.maxi ? 'En av Maxis säljare.' : ''}`, 'good');
+  return true;
+}
+function fire(id) {
+  if (S.sellers.length <= 1) return;
+  const i = S.sellers.findIndex(s => s.id === id); if (i < 0) return;
+  S.sellers.splice(i, 1);
+  S.stats.fired++;
+  seatsDirty = true;
+}
+function moveSeller(id, area) {
+  const s = S.sellers.find(x => x.id === id); if (!s || !S.areas[area].unlocked) return false;
+  if (s.seated && s.area !== area && areaWorkers(area).length >= areaSeats(area)) return false;
+  s.area = area; seatsDirty = true; return true;
+}
+
+/* =========================================================================
+   KÖP OCH UPPGRADERINGAR
+   ========================================================================= */
+function spend(c) { if (S.cash + 1e-9 < c) return false; S.cash -= c; return true; }
+function upgradeArea(i) {
+  const a = S.areas[i]; const b = bulkInfo(CONFIG.area.upgradeBase[i], a.level);
+  if (b.n > 0 && spend(b.cost)) { a.level += b.n; seatsDirty = true; return true; } return false;
+}
+function upgradeCar(kind) {
+  const c = S.car; const key = kind === 'speed' ? 'speedLvl' : 'capLvl';
+  const b = bulkInfo(kind === 'speed' ? CONFIG.car.speedCostBase : CONFIG.car.capCostBase, c[key]);
+  if (b.n > 0 && spend(b.cost)) { c[key] += b.n; return true; } return false;
+}
+function upgradeKassa() {
+  const b = bulkInfo(CONFIG.kassa.costBase, S.kassa.lvl);
+  if (b.n > 0 && spend(b.cost)) { S.kassa.lvl += b.n; return true; } return false;
+}
+function unlockArea(i) {
+  const a = S.areas[i]; if (a.unlocked || (i > 0 && !S.areas[i - 1].unlocked)) return false;
+  if (!spend(CONFIG.area.unlockCost[i])) return false;
+  a.unlocked = true; S.stats.unlocks++;
+  autoDistribute();
+  if (!SIM) { UI.buildScene(); UI.toast(`${esc(areaName(i))} upplåst!`, 'Säljarna har fördelats om automatiskt. Ändra i Personal-fliken.', 'good'); }
+  return true;
+}
+function buyProduct() {
+  const n = S.product + 1; if (n >= CONFIG.products.length) return false;
+  if (!spend(CONFIG.products[n].cost)) return false;
+  S.product = n;
+  if (!SIM) UI.toast('Ny produkt!', `Alla säljare säljer nu ${esc(CONFIG.products[n].name)}.`, 'good');
+  return true;
+}
+function buyCarTier() {
+  const n = S.car.tier + 1; if (n >= CONFIG.car.ladder.length) return false;
+  if (!spend(CONFIG.car.ladder[n].cost)) return false;
+  S.car.tier = n; seatsDirty = true;
+  if (!SIM) { UI.toast(`Ny bil: ${CONFIG.car.ladder[n].name}!`, `${CONFIG.car.ladder[n].seats} platser för säljare.`, 'good'); VIS.rebuildCar(); }
+  return true;
+}
+function hireCoach() { if (S.coach.hired || !S.areas[1].unlocked) return false; if (!spend(CONFIG.coach.hireCost)) return false; S.coach.hired = true; return true; }
+const coachCapCost = () => CONFIG.coach.capCostBase * Math.pow(CONFIG.coach.capCostMult, S.coach.capLvl);
+const coachTrainCost = () => CONFIG.coach.trainCostBase * Math.pow(CONFIG.coach.trainCostMult, S.coach.trainLvl);
+function upgradeCoach(kind) {
+  const C = CONFIG.coach;
+  if (!S.coach.hired) return false;
+  if (kind === 'cap') { if (S.coach.capLvl >= C.capMaxLevel || !spend(coachCapCost())) return false; S.coach.capLvl++; }
+  else { if (S.coach.trainLvl >= C.trainMaxLevel || !spend(coachTrainCost())) return false; S.coach.trainLvl++; }
+  return true;
+}
+const maxiPepCost = () => CONFIG.maxi.pepCosts[S.maxi.pepLvl];
+function upgradeMaxi() { if (!S.maxi.active || S.maxi.pepLvl >= CONFIG.maxi.pepLevels.length - 1) return false; if (!spend(maxiPepCost())) return false; S.maxi.pepLvl++; return true; }
+function endMaxi() { S.maxi.active = false; for (const s of S.sellers) s.maxi = false; for (const c of S.candidates) if (c.via && c.via.type === 'maxi') c.via = null; }
+const abilityUpCost = k => CONFIG.abilities[k].costBase * Math.pow(CONFIG.abilities[k].costMult, S.abilities[k].lvl);
+function upgradeAbility(k) { const a = S.abilities[k]; if (a.lvl >= CONFIG.abilities[k].maxLevel || !spend(abilityUpCost(k))) return false; a.lvl++; return true; }
+
+/* =========================================================================
+   FÖRMÅGOR (Soran & Arvin)
+   ========================================================================= */
+function useAbility(k, arg) {
+  if (!abilityReady(k)) return false;
+  const a = S.abilities[k];
+  if (k === 'gold') { if (arg === undefined || !S.areas[arg] || !S.areas[arg].unlocked) return false; S.goldArea = arg; }
+  if (k === 'recruit') newCandidates(true);
+  a.until = S.time + abilityDuration(k);
+  a.ready = S.time + abilityCooldown(k);
+  if (!SIM) {
+    if (k === 'pep') UI.toast('Soran: Pepptalk!', '"Nu kör vi! Varje dörr är en ny chans!" Alla säljare +25 % säljprocent.', 'good');
+    if (k === 'recruit') { UI.toast('Soran: Värvningsrunda!', '3 nya, vassa kandidater väntar i Personal-fliken.', 'good'); UI.setTab('personal'); }
+    if (k === 'gas') UI.toast('Arvin: Gasa på!', 'Bilen åker 3× snabbare.', 'good');
+    if (k === 'gold') UI.toast('Arvin hittar guldgatan!', `Dubbelt så många dörrar öppnas i ${esc(areaName(arg))}.`, 'good');
+  }
+  return true;
+}
+
+/* =========================================================================
+   SLUMPHÄNDELSER
+   ========================================================================= */
+const EVENTS = [
+  { id: 'lonedag', good: true, w: 3, title: 'Lönedag!', text: 'Alla har fått lön. +50 % fler öppnade dörrar överallt i 60 s.', run() { addEffect('lonedag', 60); } },
+  { id: 'pension', good: true, w: 3, title: 'Pensionären köper 5 klasar på en gång!', text: '', run(ev) {
+      const areas = S.areas.map((a, i) => i).filter(i => S.areas[i].unlocked); const i = pick(areas);
+      const pool = areaWorkers(i); const s = pool.length ? pick(pool) : pick(S.sellers);
+      const g = processSale(s, i, 5, true); ev.text = `I ${esc(areaName(i))} köpte en glad pensionär 5 klasar av ${esc(s.name)}. +${kr(g)} i säljpåsen!`; } },
+  { id: 'jul', good: true, w: 2, title: 'Julstämning', text: 'Alla vill ha mys! Produkten säljs för dubbelt pris i 90 s.', run() { addEffect('jul', 90); } },
+  { id: 'granne', good: true, w: 2, title: 'Grannchatten tipsar om LjusCo', text: '', run(ev) {
+      const areas = S.areas.map((a, i) => i).filter(i => S.areas[i].unlocked); const i = pick(areas);
+      addEffect('granne', 45, { area: i }); ev.text = `Någon i ${esc(areaName(i))}s grannchatt hyllar LjusCo. Dubbel säljprocent där i 45 s!`; } },
+  { id: 'regn', good: false, w: 3, title: 'Regnväder', text: 'Ingen vill öppna dörren i regnet. −30 % öppnade dörrar i 60 s.', run() { addEffect('regn', 60); } },
+  { id: 'punka', good: false, w: 2, title: 'Punka!', text: 'Arvin har fått punka. Bilen står still i 30 s, om du inte betalar för att laga direkt.', run() { addEffect('punka', 30); } },
+  { id: 'evict', good: false, w: 2, title: 'Arg fastighetsvärd', text: '', run(ev) {
+      const pool = S.sellers.filter(s => s.seated && s.evictedUntil <= S.time);
+      if (!pool.length) { ev.text = 'En fastighetsvärd skäller, men ingen säljare är ute. Puh!'; return; }
+      const s = pick(pool); s.evictedUntil = S.time + 60; addEffect('evict', 60, { name: s.name });
+      ev.text = `${esc(s.name)} blev utkastad från ${esc(areaName(s.area))} och säljer inget i 60 s.`; } },
+  { id: 'slut', good: false, w: 2, title: 'Leverantören har slut', text: 'Leveransen är sen. Produkten ger −50 % i 60 s.', run() { addEffect('slut', 60); } },
+];
+function addEffect(type, dur, extra = {}) {
+  const ex = S.effects.find(e => e.type === type && e.area === extra.area && type !== 'evict');
+  if (ex) ex.until = Math.max(ex.until, S.time + dur);
+  else S.effects.push({ type, until: S.time + dur, ...extra });
+  seatsDirty = true;
+}
+function triggerRandomEvent(forceId) {
+  let ev;
+  if (forceId) ev = EVENTS.find(e => e.id === forceId);
+  else { const tot = EVENTS.reduce((a, e) => a + e.w, 0); let r = Math.random() * tot; ev = EVENTS.find(e => (r -= e.w) < 0) || EVENTS[0]; }
+  const inst = { ...ev };
+  ev.run.call(inst, inst);
+  S.stats.events++;
+  if (!SIM) UI.eventToast(inst);
+}
+const flatFixCost = () => Math.max(200, Math.round(S.incomeRate * 20));
+function fixFlat() { const e = effect('punka'); if (!e || !spend(flatFixCost())) return false; S.effects = S.effects.filter(x => x !== e); return true; }
+
+/* =========================================================================
+   PRESTIGE: NY STAD
+   ========================================================================= */
+const prestigeGain = () => Math.floor(CONFIG.prestige.k * Math.sqrt(S.cityEarned / CONFIG.prestige.unit));
+const canPrestige = () => S.cityEarned >= CONFIG.prestige.minEarned && prestigeGain() > 0;
+const nextCityIdx = () => Math.min(S.cityIdx + 1, CONFIG.cities.length - 1);
+function doPrestige() {
+  if (!canPrestige()) return false;
+  const gain = prestigeGain();
+  S.rykte += gain; S.stats.prestiges++;
+  S.cityIdx = nextCityIdx();
+  S.cash = 0; S.cityEarned = 0;
+  S.areas = newAreas(); S.product = 0;
+  S.car = { tier: 0, speedLvl: 1, capLvl: 1, pos: 0, target: 0, phase: 'idle', timer: 0, load: 0, stop: -1 };
+  S.kassa = { lvl: 1, buffer: 0 };
+  S.coach = { hired: false, capLvl: 0, trainLvl: 0 };
+  S.abilities = newAbilities(); S.goldArea = -1;
+  S.maxi.pepLvl = 0;
+  S.effects = [];
+  for (const s of S.sellers) { s.area = 0; s.pin = 0; s.evictedUntil = 0; }
+  S.incomeSamples = []; S.incomeRate = 0;
+  seatsDirty = true;
+  return gain;
+}
+
+/* =========================================================================
+   SPARNING (localStorage, try/catch överallt)
+   ========================================================================= */
+function serialize() { return JSON.stringify(S); }
+function deepMerge(base, obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj === undefined ? base : obj;
+  const out = Array.isArray(base) ? [] : { ...base };
+  for (const k in obj) out[k] = (base && typeof base[k] === 'object' && base[k] && !Array.isArray(base[k])) ? deepMerge(base[k], obj[k]) : obj[k];
+  return out;
+}
+function loadFrom(json) {
+  const data = JSON.parse(json);
+  if (!data || data.v !== 1 || !Array.isArray(data.sellers)) throw new Error('Ogiltig sparfil');
+  const prev = S; newGame(); const fresh = S; S = prev;
+  const merged = deepMerge(fresh, data);
+  // Säkerställ att arrayer har rätt längd och fält
+  merged.areas = CONFIG.area.unlockCost.map((c, i) => ({ ...newAreas()[i], ...(data.areas && data.areas[i]) }));
+  for (const s of merged.sellers) { const d = makeSellerShape(); for (const k in d) if (s[k] === undefined) s[k] = d[k]; }
+  merged.abilities = deepMerge(newAbilities(), data.abilities || {});
+  S = merged; seatsDirty = true;
+}
+function makeSellerShape() { const p = S; S = null; const s = makeSeller('x', 0.2, false); S = p; return s; }
+function save() {
+  if (SIM) return;
+  try { localStorage.setItem(CONFIG.saveKey, serialize()); } catch (e) { /* lagring ej tillgänglig – spelet fungerar ändå */ }
+}
+function loadSaved() {
+  try { const j = localStorage.getItem(CONFIG.saveKey); if (j) { loadFrom(j); return true; } } catch (e) { console.warn('Kunde inte ladda sparfil:', e.message); }
+  return false;
+}
+function exportSave() { try { return btoa(unescape(encodeURIComponent(serialize()))); } catch (e) { return ''; } }
+function importSave(code) { const json = decodeURIComponent(escape(atob(code.trim()))); loadFrom(json); }
+
+/* =========================================================================
+   GRAFIK: SVG-figurer (porträtt, säljare, bil, hus, produkter)
+   ========================================================================= */
+const SKINS = ['#f2c9a0', '#e0ac7e', '#c68a5c', '#a86b42', '#8a5533', '#f6d3b3'];
+const HAIRS = ['#2b1a12', '#3d2516', '#5a3a1e', '#111', '#7a4a22', '#c9933a'];
+
+function portraitSVG(who) {
+  const base = (skin, hair, shirt, extra, hairShape) => `<svg viewBox="0 0 60 60" width="100%" height="100%">
+    <rect width="60" height="60" fill="${who === 'maxi' ? '#ffd8a8' : who === 'arvin' ? '#cfe6ff' : '#ffe2b0'}"/>
+    <path d="M8 60 Q10 42 30 41 Q50 42 52 60Z" fill="${shirt}"/>
+    <rect x="25" y="35" width="10" height="8" fill="${skin}"/>
+    <ellipse cx="30" cy="26" rx="13" ry="14" fill="${skin}"/>
+    ${hairShape}
+    <circle cx="25" cy="27" r="1.8" fill="#2b1a12"/><circle cx="35" cy="27" r="1.8" fill="#2b1a12"/>
+    <path d="M24 33 Q30 38 36 33" stroke="#7a3a22" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <circle cx="21" cy="31" r="2.5" fill="#f08a7a" opacity=".35"/><circle cx="39" cy="31" r="2.5" fill="#f08a7a" opacity=".35"/>
+    ${extra}</svg>`;
+  if (who === 'soran') return base('#d9a47a', '#1d120c', '#ff8a3d',
+    `<path d="M19 30 Q20 40 30 41 Q40 40 41 30 Q40 37 30 37 Q20 37 19 30Z" fill="#2a1a10"/><text x="30" y="56" font-size="7" text-anchor="middle" fill="#fff" font-weight="900">LjusCo</text>`,
+    `<path d="M16 24 Q16 10 30 10 Q44 10 44 24 Q40 16 30 16 Q20 16 16 24Z" fill="#1d120c"/>`);
+  if (who === 'arvin') return base('#e0b088', '#2b1a12', '#3f7fc4',
+    `<path d="M18 33 Q30 40 42 33" stroke="#3a2516" stroke-width="2.4" fill="none"/>`,
+    `<path d="M15 22 Q16 9 30 9 Q44 9 45 22Z" fill="#e5534b"/><rect x="13" y="20" width="34" height="4" rx="2" fill="#c73e37"/><circle cx="30" cy="9" r="2.5" fill="#fff"/>`);
+  return base('#c98e62', '#111', '#2fa36a',
+    `<rect x="19" y="23" width="9" height="6" rx="2" fill="#222"/><rect x="32" y="23" width="9" height="6" rx="2" fill="#222"/><rect x="27" y="25" width="6" height="1.5" fill="#222"/>
+     <path d="M30 44 L30 52" stroke="#ffd34a" stroke-width="1.5"/><rect x="27" y="51" width="6" height="4" rx="1" fill="#ffd34a"/>`,
+    `<path d="M16 22 Q17 10 30 10 Q43 10 44 22 Q38 14 30 14 Q22 14 16 22Z" fill="#111"/><rect x="15" y="17" width="30" height="4" rx="2" fill="#ff8a3d"/>`);
+}
+const maxiMini = () => `<svg class="maxiIcon" viewBox="0 0 20 20" data-tip="maxiIcon"><circle cx="10" cy="10" r="9.5" fill="#2fa36a"/><text x="10" y="14.5" text-anchor="middle" font-size="12" font-weight="900" fill="#fff">M</text></svg>`;
+
+function sellerLook(s) { const h = hashStr(s.name); return { skin: SKINS[h % SKINS.length], hair: HAIRS[(h >> 4) % HAIRS.length], style: (h >> 8) % 3 }; }
+function sellerSVG(s, small) {
+  const L = sellerLook(s), shirt = s.team === 'A' ? '#ff8a3d' : '#3fa7c9';
+  const hair = L.style === 0 ? `<path d="M6 9 Q6 2 13 2 Q20 2 20 9 Q17 5 13 5 Q9 5 6 9Z" fill="${L.hair}"/>`
+    : L.style === 1 ? `<path d="M5.5 11 Q5 1 13 1.5 Q21 1 20.5 11 L19 7 Q13 3 7 7Z" fill="${L.hair}"/>`
+    : `<path d="M6 8 Q7 1.5 13 2 Q19 1.5 20 8 L18 5 L15 7 L12 4.5 L9 7Z" fill="${L.hair}"/>`;
+  if (small) return `<svg width="26" height="30" viewBox="0 0 26 30"><rect x="6" y="15" width="14" height="13" rx="5" fill="${shirt}"/><circle cx="13" cy="9" r="7" fill="${L.skin}"/>${hair}<circle cx="10.5" cy="9.5" r="1" fill="#222"/><circle cx="15.5" cy="9.5" r="1" fill="#222"/></svg>`;
+  return `<svg width="26" height="44" viewBox="0 0 26 44"><g class="fig">
+    <ellipse cx="13" cy="42" rx="8" ry="2" fill="rgba(0,0,0,.22)"/>
+    <rect class="lg1" x="8.5" y="28" width="4" height="13" rx="2" fill="#3b3b5c"/>
+    <rect class="lg2" x="13.5" y="28" width="4" height="13" rx="2" fill="#2e2e4a"/>
+    <rect x="6" y="15" width="14" height="16" rx="5" fill="${shirt}"/>
+    <path d="M9 16 L18 26" stroke="#6b3d16" stroke-width="1.5"/>
+    <rect x="16" y="23" width="9" height="9" rx="2" fill="#a0672f"/><rect x="18" y="25" width="5" height="2" rx="1" fill="#ffd36b"/>
+    <circle cx="13" cy="9" r="7" fill="${L.skin}"/>${hair}
+    <circle cx="15.5" cy="9.5" r="1" fill="#222"/><path d="M14 12.5 Q16 13.5 17.5 12" stroke="#7a3a22" stroke-width="1" fill="none"/>
+  </g></svg>`;
+}
+
+// Bilen sedd uppifrån (fronten nedåt)
+const CAR_STYLE = [
+  { len: 58, w: 38, body: '#e5534b', roof: '#c73e37' },
+  { len: 72, w: 40, body: '#ff8a3d', roof: '#e06a1f' },
+  { len: 84, w: 42, body: '#4a8fd8', roof: '#3672b5' },
+  { len: 100, w: 44, body: '#f6c03f', roof: '#d9a21f' },
+  { len: 108, w: 46, body: '#d93b3b', roof: '#b02a2a' },
+];
+function carSVG(tier) {
+  const c = CAR_STYLE[tier], L = c.len, W = c.w, x0 = (48 - W) / 2;
+  const windows = tier >= 2 ? Array.from({ length: Math.floor((L - 40) / 12) }, (_, k) => `<rect x="${x0 + 3}" y="${16 + k * 12}" width="4" height="8" rx="1" fill="#bfe3ff"/><rect x="${x0 + W - 7}" y="${16 + k * 12}" width="4" height="8" rx="1" fill="#bfe3ff"/>`).join('') : '';
+  const deck = tier === 4 ? `<rect x="${x0 + 7}" y="12" width="${W - 14}" height="${L - 30}" rx="6" fill="${c.roof}" opacity=".6"/>` : '';
+  return `<svg width="48" height="${L + 4}" viewBox="0 0 48 ${L + 4}">
+    <rect x="${x0 - 3}" y="${L * 0.16}" width="6" height="13" rx="3" fill="#222"/><rect x="${x0 + W - 3}" y="${L * 0.16}" width="6" height="13" rx="3" fill="#222"/>
+    <rect x="${x0 - 3}" y="${L * 0.72}" width="6" height="13" rx="3" fill="#222"/><rect x="${x0 + W - 3}" y="${L * 0.72}" width="6" height="13" rx="3" fill="#222"/>
+    <rect x="${x0}" y="2" width="${W}" height="${L}" rx="11" fill="${c.body}" stroke="rgba(0,0,0,.25)" stroke-width="2"/>
+    <rect x="${x0 + 5}" y="${L - 24}" width="${W - 10}" height="13" rx="4" fill="#9fd4ff"/>
+    <rect x="${x0 + 5}" y="7" width="${W - 10}" height="7" rx="3" fill="#9fd4ff" opacity=".8"/>
+    <rect x="${x0 + 5}" y="16" width="${W - 10}" height="${L - 42}" rx="6" fill="${c.roof}"/>${deck}${windows}
+    <circle cx="${x0 + W / 2 + 6}" cy="${L - 27}" r="6" fill="#e0b088"/><path d="M${x0 + W / 2} ${L - 28} a6 6 0 0 1 12 0Z" fill="#e5534b"/>
+    <rect x="${x0 + 3}" y="${L - 1}" width="7" height="3" rx="1.5" fill="#fff6b0"/><rect x="${x0 + W - 10}" y="${L - 1}" width="7" height="3" rx="1.5" fill="#fff6b0"/>
+    <rect x="${x0 + W / 2 - 9}" y="${L * 0.45}" width="18" height="10" rx="3" fill="#fff" opacity=".9"/>
+    <text x="24" y="${L * 0.45 + 7.5}" font-size="6" font-weight="900" text-anchor="middle" fill="${c.roof}">LjusCo</text>
+  </svg>`;
+}
+
+// Produktikoner
+function productIcon(id, size = 32) {
+  const flame = (x, y) => `<path class="flick" d="M${x} ${y - 7} Q${x + 3} ${y - 2} ${x} ${y} Q${x - 3} ${y - 2} ${x} ${y - 7}Z" fill="#ffb12b"/><path d="M${x} ${y - 4} Q${x + 1.4} ${y - 1} ${x} ${y} Q${x - 1.4} ${y - 1} ${x} ${y - 4}Z" fill="#fff3a8"/>`;
+  const candle = (x, y, h, col) => `<rect x="${x - 2.5}" y="${y}" width="5" height="${h}" rx="1.5" fill="${col}" stroke="rgba(0,0,0,.15)"/>${flame(x, y - 1)}`;
+  let g = '';
+  switch (id) {
+    case 'vit': g = candle(10, 14, 14, '#fff') + candle(16, 10, 18, '#fff') + candle(22, 14, 14, '#fff') + `<rect x="6" y="26" width="20" height="3" rx="1.5" fill="#c9a36b"/>`; break;
+    case 'farg': g = candle(10, 14, 14, '#8e1f2f') + candle(16, 10, 18, '#c69a6d') + candle(22, 14, 14, '#e8d5b0') + `<rect x="6" y="26" width="20" height="3" rx="1.5" fill="#c9a36b"/>`; break;
+    case 'doft': g = `<path d="M8 15 h16 v11 a3 3 0 0 1 -3 3 h-10 a3 3 0 0 1 -3 -3Z" fill="#f7d9e6" stroke="#c98aa8"/>${flame(16, 14)}<path d="M21 10 q3 -3 0 -6 M24 11 q3 -3 0 -6" stroke="#c98aa8" fill="none" stroke-width="1.2"/>`; break;
+    case 'block': g = `<rect x="5" y="17" width="22" height="12" rx="2" fill="#e5534b"/><rect x="14.5" y="17" width="3" height="12" fill="#ffd34a"/><path d="M16 17 q-6 -5 -7 0 M16 17 q6 -5 7 0" stroke="#ffd34a" fill="none" stroke-width="2"/>` + candle(16, 8, 7, '#fff'); break;
+    case 'lyx': g = `<path d="M8 12 h16 l-1 15 a3 3 0 0 1 -3 3 h-8 a3 3 0 0 1 -3 -3Z" fill="rgba(170,220,255,.55)" stroke="#6aa9d8"/><rect x="10" y="17" width="12" height="11" rx="2" fill="#f4e0b8"/>${flame(16, 17)}<rect x="11" y="21" width="10" height="4" rx="1" fill="#c9a24a"/>`; break;
+    case 'advent': g = `<ellipse cx="16" cy="26" rx="13" ry="4" fill="#3f8a4a"/>` + candle(7, 17, 9, '#b8263a') + candle(13, 14, 12, '#b8263a') + candle(19, 14, 12, '#b8263a') + candle(25, 17, 9, '#b8263a') + `<circle cx="10" cy="27" r="1.5" fill="#e5534b"/><circle cx="22" cy="27" r="1.5" fill="#e5534b"/>`; break;
+    default: g = `<rect x="11" y="11" width="10" height="18" rx="2" fill="#ffd34a" stroke="#c99a1a"/>${flame(16, 10)}<path d="M16 15 l1.6 3.2 3.5.5 -2.5 2.4.6 3.5 -3.2-1.7 -3.2 1.7.6-3.5 -2.5-2.4 3.5-.5Z" fill="#fff"/><circle cx="6" cy="9" r="1.5" fill="#ffd34a"/><circle cx="26" cy="12" r="1.2" fill="#ffd34a"/>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32">${g}</svg>`;
+}
+
+/* ---- Hus i områdena: varje område har en egen hustyp ---- */
+const AREA_STYLES = [
+  { kind: 'landshovding' }, { kind: 'brick' }, { kind: 'tower' }, { kind: 'colorful' },
+  { kind: 'star' }, { kind: 'slab' }, { kind: 'villa' }, { kind: 'manor' },
+];
+const GROUND_Y = 142;
+function windowsGrid(R, x, y, w, h, cols, rows, frame) {
+  let o = ''; const cw = w / cols, rh = h / rows;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const wx = x + c * cw + cw * 0.22, wy = y + r * rh + rh * 0.2, ww = cw * 0.56, wh = rh * 0.58;
+    const lit = R() < 0.62;
+    o += `<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="${ww.toFixed(1)}" height="${wh.toFixed(1)}" rx="1.5" fill="${lit ? '#ffd56e' : '#4a5873'}" stroke="${frame}" stroke-width="1"/>`;
+    if (lit && R() < 0.3 && ww > 7) { const cx = wx + ww / 2, by = wy + wh - 1; o += `<path d="M${cx - 3.5} ${by} L${cx} ${by - 4} L${cx + 3.5} ${by}" stroke="#7a4a1a" stroke-width="1" fill="none"/><circle class="flick" cx="${cx}" cy="${by - 4.6}" r="1" fill="#ff9d1c"/>`; }
+  }
+  return o;
+}
+function tree(x, R, col) { const h = 26 + R() * 14; return `<rect x="${x - 2}" y="${GROUND_Y - 12}" width="4" height="12" fill="#7a4f2a"/><ellipse cx="${x}" cy="${GROUND_Y - 12 - h / 2.4}" rx="${10 + R() * 4}" ry="${h / 2}" fill="${col}"/>`; }
+
+function streetSVG(ai) {
+  const C = city(), st = AREA_STYLES[ai].kind, R = mulberry32(ai * 977 + S.cityIdx * 131 + 7);
+  const wall = C.walls[ai]; const doors = []; let s = '';
+  const frame = '#fff8';
+  const add = (x, w, h, opts) => {
+    const top = GROUND_Y - h;
+    const col = opts.color || wall;
+    if (opts.roof === 'pitch') s += `<path d="M${x - 4} ${top + 1} L${x + w / 2} ${top - 22} L${x + w + 4} ${top + 1}Z" fill="${opts.roofCol || '#5a3a3a'}"/>`;
+    if (opts.roof === 'pyramid') s += `<path d="M${x - 2} ${top + 1} L${x + w / 2} ${top - 18} L${x + w + 2} ${top + 1}Z" fill="${shade(col, -25)}"/>`;
+    if (opts.roof === 'turret') s += `<rect x="${x + w - 26}" y="${top - 18}" width="20" height="20" fill="${col}"/><path d="M${x + w - 29} ${top - 18} L${x + w - 16} ${top - 38} L${x + w - 3} ${top - 18}Z" fill="#5d6b7a"/><path d="M${x - 4} ${top + 1} L${x + 14} ${top - 14} L${x + w - 30} ${top - 14} L${x + w - 26} ${top + 1}Z" fill="#5d6b7a"/>`;
+    s += `<rect x="${x}" y="${top}" width="${w}" height="${h}" rx="3" fill="${col}" stroke="rgba(0,0,0,.18)" stroke-width="1.5"/>`;
+    if (opts.base) s += `<rect x="${x}" y="${GROUND_Y - opts.base}" width="${w}" height="${opts.base}" fill="${opts.baseCol}" stroke="rgba(0,0,0,.18)" stroke-width="1.5"/>`;
+    if (opts.roof === 'flat') s += `<rect x="${x - 3}" y="${top - 4}" width="${w + 6}" height="6" rx="2" fill="${shade(col, -22)}"/>`;
+    if (opts.roof === 'low') s += `<path d="M${x - 4} ${top + 1} L${x + 8} ${top - 9} L${x + w - 8} ${top - 9} L${x + w + 4} ${top + 1}Z" fill="#6a3a2e"/>`;
+    s += windowsGrid(R, x + 3, top + 4, w - 6, h - 40, opts.cols, opts.rows, frame);
+    if (opts.balcony) for (let r = 0; r < opts.rows; r++) { const by = top + 4 + (r + 0.78) * ((h - 40) / opts.rows); s += `<rect x="${x + 4}" y="${by.toFixed(1)}" width="${w - 8}" height="3.5" rx="1" fill="${opts.balcony}"/>`; }
+    for (const f of opts.doors) { const dx = x + w * f; doors.push(dx); s += `<rect x="${dx - 13}" y="${GROUND_Y - 34}" width="26" height="34" rx="4" fill="${shade(col, -18)}"/><rect x="${dx - 15}" y="${GROUND_Y - 37}" width="30" height="4" rx="2" fill="${shade(col, -30)}"/>`; }
+  };
+  // Bakgrund: träd
+  for (let k = 0; k < 6; k++) s += tree(20 + k * 95 + R() * 30, R, shade(C.ground, -8 + R() * 10));
+  switch (st) {
+    case 'landshovding':
+      for (let k = 0; k < 3; k++) add(10 + k * 170, 150, 100, { color: shade(wall, 0, k * 35 - 20), roof: 'pitch', roofCol: '#4a3a3a', base: 36, baseCol: '#8c7b6b', cols: 4, rows: 2, doors: [0.28, 0.72] });
+      break;
+    case 'brick':
+      for (let k = 0; k < 3; k++) add(10 + k * 170, 150, 104, { color: shade(wall, k * 4 - 4), roof: 'low', cols: 5, rows: 3, doors: [0.3, 0.7] });
+      break;
+    case 'tower':
+      for (let k = 0; k < 3; k++) add(16 + k * 170, 136, 132, { color: shade(wall, k * 5), roof: 'flat', cols: 4, rows: 6, doors: [0.3, 0.7] });
+      break;
+    case 'colorful': {
+      const cols = [wall, '#f2b84b', '#7fc4a8'];
+      for (let k = 0; k < 3; k++) add(12 + k * 170, 146, 122, { color: shade(cols[k], 4), roof: 'flat', cols: 5, rows: 5, balcony: shade(cols[(k + 1) % 3], -10), doors: [0.3, 0.7] });
+      break;
+    }
+    case 'star':
+      for (let k = 0; k < 3; k++) add(18 + k * 170, 132, 124, { color: shade(wall, k * 4), roof: 'pyramid', cols: 3, rows: 6, doors: [0.3, 0.7] });
+      break;
+    case 'slab':
+      add(8, 504, 112, { color: wall, roof: 'flat', cols: 16, rows: 4, balcony: shade(wall, -20), doors: [1 / 12, 3 / 12, 5 / 12, 7 / 12, 9 / 12, 11 / 12] });
+      break;
+    case 'villa':
+      for (let k = 0; k < 6; k++) {
+        const col = k % 2 ? wall : shade(wall, -4, 40);
+        add(8 + k * 86, 70, 72, { color: col, roof: 'pitch', roofCol: k % 2 ? '#8a3a2e' : '#4a4a5a', cols: 2, rows: 1, doors: [0.5] });
+        s += `<rect x="${4 + k * 86}" y="${GROUND_Y - 8}" width="78" height="8" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+      }
+      break;
+    default: // manor
+      for (let k = 0; k < 3; k++) add(10 + k * 170, 150, 104, { color: shade(wall, k * 3), roof: 'turret', cols: 4, rows: 2, base: 10, baseCol: shade(wall, -20), doors: [0.25, 0.62] });
+  }
+  // Trottoar
+  s += `<rect x="-300" y="${GROUND_Y}" width="900" height="28" fill="#d8ccb6"/><rect x="-300" y="${GROUND_Y}" width="900" height="3" fill="#bfae92"/>`;
+  return { svg: `<svg class="bld" width="520" height="170" viewBox="0 0 520 170" overflow="visible">${s}</svg>`, doors };
+}
+
+function homeSVG(w) {
+  const C = city();
+  return `<svg width="100%" height="270" viewBox="0 0 ${w} 270" preserveAspectRatio="xMinYMin slice">
+    <defs><linearGradient id="hsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C.sky[0]}"/><stop offset="1" stop-color="${C.sky[1]}"/></linearGradient></defs>
+    <rect width="${w}" height="270" fill="url(#hsky)"/>
+    <circle cx="${w - 90}" cy="46" r="24" fill="#fff4c2" opacity=".85"/>
+    <ellipse cx="${w * 0.35}" cy="40" rx="50" ry="12" fill="#fff" opacity=".45"/><ellipse cx="${w * 0.7}" cy="70" rx="60" ry="13" fill="#fff" opacity=".35"/>
+    <rect x="0" y="232" width="${w}" height="38" fill="${C.ground}"/>
+    <rect x="0" y="150" width="96" height="120" fill="#4d4a52"/>
+    <!-- LjusCo HQ -->
+    <path d="M362 112 L520 40 L678 112Z" fill="#7a3a2e"/>
+    <rect x="378" y="108" width="284" height="126" rx="6" fill="#ffe7b8" stroke="rgba(0,0,0,.18)" stroke-width="2"/>
+    <rect x="474" y="54" width="92" height="30" rx="10" fill="#2b1838"/><text x="520" y="75" font-size="17" font-weight="900" fill="#ffc94a" text-anchor="middle">LjusCo</text>
+    <rect x="560" y="130" width="34" height="30" rx="3" fill="#ffd56e" stroke="#fff" stroke-width="2"/><rect x="610" y="130" width="34" height="30" rx="3" fill="#ffd56e" stroke="#fff" stroke-width="2"/>
+    <circle class="flick" cx="577" cy="144" r="3" fill="#ff9d1c"/><circle class="flick" cx="627" cy="144" r="3" fill="#ff9d1c"/>
+    <rect x="600" y="180" width="30" height="54" rx="4" fill="#8a4a2e"/>
+    <!-- garage mot vägen -->
+    <rect x="0" y="96" width="104" height="58" fill="#c9b49a"/><path d="M-6 98 L52 74 L110 98Z" fill="#7a3a2e"/>
+    <rect x="12" y="112" width="72" height="42" rx="3" fill="#6d5a48"/>
+    ${Array.from({ length: 5 }, (_, k) => `<rect x="12" y="${114 + k * 8}" width="72" height="2" fill="#5a4838"/>`).join('')}
+  </svg>`;
+}
+
+/* =========================================================================
+   VISUELLT LAGER (VIS): figurer, dörrar, flygande siffror, bilen
+   ========================================================================= */
+const HOME_H = 270, ROW_H = 196;
+const VIS = {
+  rows: [], sprites: new Map(), floats: 0, pend: new Map(), lastCarTier: -1,
+  onSale(s, i, gain) { const p = this.pend.get(s.id) || { amt: 0, t: 0 }; p.amt += gain; this.pend.set(s.id, p); },
+  outcome(s, kind) { const sp = this.sprites.get(s.id); if (!sp) return; const pr = { full: 0, closed: 1, no: 2, sale: 3 }; if (!sp.out || pr[kind] > pr[sp.out]) sp.out = kind; },
+  unload(amt) {
+    const d = $('#soranDesk'); if (!d) return;
+    const el = document.createElement('div'); el.className = 'coin'; el.textContent = '+' + kr(amt);
+    el.style.left = (20 + Math.random() * 50) + 'px'; el.style.top = '10px'; d.appendChild(el); setTimeout(() => el.remove(), 900);
+  },
+  rebuildCar() {
+    const car = $('#car'); if (!car) return;
+    car.innerHTML = carSVG(S.car.tier) + '<div class="load"></div><div class="flatTag">PUNKA!</div>';
+    this.lastCarTier = S.car.tier; this.carLen = CAR_STYLE[S.car.tier].len;
+  },
+  carY(p) {
+    const yHome = 150, pts = [yHome];
+    for (let i = 0; i < S.areas.length; i++) pts.push(HOME_H + i * ROW_H + ROW_H / 2 - (this.carLen || 60) / 2);
+    const k = clamp(Math.floor(p), 0, pts.length - 2), f = p - k;
+    return pts[k] + (pts[k + 1] - pts[k]) * f;
+  },
+  float(parent, x, y, text, big) {
+    if (this.floats > 45) return;
+    const el = document.createElement('div'); el.className = 'float' + (big ? ' big' : ''); el.textContent = text;
+    el.style.left = x + 'px'; el.style.top = y + 'px'; parent.appendChild(el); this.floats++;
+    setTimeout(() => { el.remove(); this.floats--; }, 1300);
+  },
+  door(row, d, kind, text) {
+    const el = row.doorEls[d]; if (!el) return;
+    el.classList.remove('open', 'knock');
+    void el.offsetWidth;
+    el.classList.add(kind === 'closed' ? 'knock' : 'open');
+    if (text) { const b = document.createElement('div'); b.className = 'bub ' + (kind === 'sale' ? 'yes' : kind === 'no' ? 'no' : 'kn'); b.textContent = text; el.appendChild(b); setTimeout(() => b.remove(), 1100); }
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('open', 'knock'), kind === 'closed' ? 650 : 1000);
+  },
+
+  // Synkar figurerna mot vilka som sitter i bilen
+  syncSprites() {
+    const want = new Set();
+    for (const s of S.sellers) {
+      if (!s.seated) continue;
+      const row = this.rows[s.area]; if (!row || !row.street) continue;
+      want.add(s.id);
+      let sp = this.sprites.get(s.id);
+      if (sp && (sp.area !== s.area || sp.team !== s.team)) { sp.el.remove(); this.sprites.delete(s.id); sp = null; }
+      if (!sp) {
+        const el = document.createElement('div'); el.className = 'seller';
+        el.innerHTML = sellerSVG(s) + `<div class="nm">${esc(s.name)}${s.maxi ? ' ·M' : ''}</div>`;
+        row.street.appendChild(el);
+        const x = row.doors[Math.floor(Math.random() * row.doors.length)] + rand(-30, 30);
+        sp = { el, area: s.area, team: s.team, x, door: -1, mode: 'walk', t: 0, out: null, faceL: false };
+        this.sprites.set(s.id, sp); this.pickDoor(sp, row);
+      }
+    }
+    for (const [id, sp] of this.sprites) if (!want.has(id)) { sp.el.remove(); this.sprites.delete(id); }
+  },
+  pickDoor(sp, row) { let d; do { d = Math.floor(Math.random() * row.doors.length); } while (row.doors.length > 1 && d === sp.door); sp.door = d; sp.mode = 'walk'; },
+
+  frame(dt) {
+    // Figurer
+    for (const s of S.sellers) {
+      const sp = this.sprites.get(s.id); if (!sp) continue;
+      const row = this.rows[s.area]; if (!row || !row.street) continue;
+      const evicted = s.evictedUntil > S.time;
+      const full = S.areas[s.area].bag >= bagCap(s.area);
+      sp.el.classList.toggle('evicted', evicted);
+      if (evicted || full) { sp.el.classList.remove('walk'); sp.el.classList.add('idle'); }
+      else if (sp.mode === 'walk') {
+        sp.el.classList.remove('idle');
+        const tx = row.doors[sp.door] + 14, dx = tx - sp.x, step = 95 * dt;
+        if (Math.abs(dx) <= step) { sp.x = tx; sp.mode = 'knock'; sp.t = 0.75; sp.out = null; sp.el.classList.remove('walk'); sp.faceL = true; }
+        else { sp.x += Math.sign(dx) * step; sp.faceL = dx < 0; sp.el.classList.add('walk'); }
+      } else if (sp.mode === 'knock') {
+        if (sp.t === 0.75) { /* första frame */ }
+        sp.t -= dt;
+        if (sp.t <= 0.45 && !sp.shown) {
+          sp.shown = true;
+          const k = sp.out || 'closed';
+          this.door(row, sp.door, k === 'sale' ? 'sale' : k === 'no' ? 'no' : 'closed', k === 'sale' ? 'Ja tack!' : k === 'no' ? pick(['Nej tack!', 'Nej tack', 'Har redan!', 'Inte idag']) : 'knack knack');
+        }
+        if (sp.t <= 0) { sp.shown = false; this.pickDoor(sp, row); }
+      }
+      sp.el.classList.toggle('left', sp.faceL);
+      sp.el.style.transform = `translateX(${(sp.x - 13).toFixed(1)}px)`;
+      // flygande vinst
+      const p = this.pend.get(s.id);
+      if (p) { p.t -= dt; if (p.t <= 0 && p.amt > 0) { this.float(row.street, sp.x, 96, '+' + kr(p.amt), p.amt > salePrice(s.area) * 2); p.amt = 0; p.t = 0.45; } }
+    }
+    // Bilen
+    const car = $('#car');
+    if (car) {
+      if (this.lastCarTier !== S.car.tier) this.rebuildCar();
+      const c = S.car;
+      car.style.top = this.carY(c.pos).toFixed(1) + 'px';
+      const goingUp = c.phase === 'move' && c.target < c.pos;
+      const svg = car.firstElementChild; if (svg) svg.style.transform = goingUp ? 'rotate(180deg)' : '';
+      const ld = car.querySelector('.load'); if (ld) { ld.textContent = c.load > 0 ? kr(c.load) : 'tom'; ld.style.opacity = c.load > 0 ? 1 : .55; }
+      car.classList.toggle('flat', !!effect('punka'));
+    }
+  },
+};
+
+/* =========================================================================
+   UI: scen, sidopanel, managers, modaler, toasts, tooltips
+   ========================================================================= */
+const TABS = [['personal', 'Personal'], ['maxi', 'Maxi'], ['produkter', 'Produkter'], ['bilen', 'Bilen'], ['coach', 'Coach'], ['rapport', 'Rapport']];
+let pointerDown = false;
+let lastPanelHTML = '';
+let modalQueue = [], modalOpen = false, paused = false;
+
+const UI = {
+  init() {
+    $('#logo').innerHTML = `${productIcon('vit', 30)}<span>Ljus<b>Co</b> Tycoon</span>`;
+    $('#buyMode').innerHTML = [1, 10, 50, 'max'].map(m => `<button data-act="buyMode" data-arg="${m}">${m === 'max' ? 'MAX' : 'x' + m}</button>`).join('');
+    $('#tabs').innerHTML = TABS.map(([k, n]) => `<button data-act="tab" data-arg="${k}" id="tab-${k}">${n}</button>`).join('');
+    this.buildManagers();
+    this.buildScene();
+    this.setTab(S.tab || 'personal');
+    document.addEventListener('pointerdown', () => pointerDown = true);
+    document.addEventListener('pointerup', () => setTimeout(() => pointerDown = false, 0));
+    document.addEventListener('click', e => {
+      const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+      const f = ACT[b.dataset.act]; if (f) { f(b.dataset.arg, b); this.refreshPanel(true); this.updateScene(); }
+    });
+    // Tooltip
+    let mx = -1, my = -1;
+    document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; this.tip(mx, my); });
+    setInterval(() => this.tip(mx, my), 150);
+  },
+  tip(mx, my) {
+    const t = $('#tooltip');
+    const el = mx >= 0 ? document.elementFromPoint(mx, my) : null;
+    const host = el && el.closest('[data-tip]');
+    if (!host) { t.style.display = 'none'; return; }
+    const txt = tipFor(host.dataset.tip); if (!txt) { t.style.display = 'none'; return; }
+    t.innerHTML = txt; t.style.display = 'block';
+    const r = t.getBoundingClientRect();
+    let x = mx + 16, y = my + 16;
+    if (x + r.width > innerWidth - 8) x = mx - r.width - 12;
+    if (y + r.height > innerHeight - 8) y = my - r.height - 12;
+    t.style.left = x + 'px'; t.style.top = y + 'px';
+  },
+
+  /* ---------- Scenen ---------- */
+  buildScene() {
+    const world = $('#world');
+    const W = Math.max(790, $('#scene').clientWidth || 800);
+    const shown = S.areas.map((a, i) => i).filter(i => S.areas[i].unlocked || (i > 0 && S.areas[i - 1].unlocked));
+    world.style.height = (HOME_H + shown.length * ROW_H + 30) + 'px';
+    let html = `<div id="home"><div class="homeBg">${homeSVG(W)}</div>
+      <div class="homeCard" id="carCard">
+        <h4><span id="carName">Arvins bil</span><span class="muted" id="carSeatsTxt"></span></h4>
+        <div class="row"><span>Kapacitet</span><span id="carCapTxt"></span></div>
+        <div class="row"><span>Hastighet</span><span id="carSpdTxt"></span></div>
+        <div class="two"><button class="buy" data-act="carUp" data-arg="cap" data-tip="carCap" id="btnCarCap"></button><button class="buy" data-act="carUp" data-arg="speed" data-tip="carSpeed" id="btnCarSpd"></button></div>
+      </div>
+      <div class="homeCard" id="kassaCard">
+        <h4><span>Kassan (Soran)</span><span class="muted" id="kassaLvl"></span></h4>
+        <div class="row"><span>Räknar in</span><span id="kassaRate"></span></div>
+        <div class="row"><span>Att räkna in</span><span id="kassaBuf"></span></div>
+        <button class="buy" data-act="kassaUp" data-tip="kassa" id="btnKassa"></button>
+      </div>
+      <div id="soranDesk">${deskSVG()}</div>
+      <div class="homeCard" id="benchCard"><h4><span>Bänken</span><span class="muted" id="benchCount"></span></h4><div id="bench"></div></div>
+    </div>
+    <div id="road"></div><div id="car"></div><div id="rows"></div>`;
+    world.innerHTML = html;
+    this._benchKey = null;
+    this._sceneKey = sceneKey();
+    VIS.rebuildCar();
+    const rowsEl = $('#rows'); VIS.rows = []; VIS.sprites.clear();
+    const C = city();
+    for (const i of shown) {
+      const a = S.areas[i];
+      const el = document.createElement('div'); el.className = 'area' + (a.unlocked ? '' : ' locked');
+      const { svg, doors } = streetSVG(i);
+      el.innerHTML = `<div class="sky" style="background:linear-gradient(${shade(C.sky[0], -i * 4, i * 6)}, ${shade(C.sky[1], -i * 3)})"></div>
+        <svg class="stop" viewBox="0 0 26 26"><circle cx="13" cy="13" r="12" fill="#fff" stroke="#2b1838" stroke-width="2"/><text x="13" y="18" font-size="13" font-weight="900" text-anchor="middle" fill="#2b1838">${i + 1}</text></svg>
+        <div class="ground"></div><div class="street">${svg}</div><div class="fullNote">Säljpåsen är full! Väntar på bilen…</div>`;
+      const street = el.querySelector('.street');
+      const doorEls = doors.map(x => { const d = document.createElement('div'); d.className = 'door'; d.style.left = (x - 10) + 'px'; d.style.top = (GROUND_Y - 29) + 'px';
+        d.innerHTML = `<div class="inside"></div><div class="leaf" style="background:${pick(['#8a4a2e', '#3f6e8c', '#5c7a3a', '#9b3a3a', '#6a4a7a'])}"></div>`; street.appendChild(d); return d; });
+      const row = { el, street: a.unlocked ? street : null, doors, doorEls, i };
+      if (a.unlocked) {
+        el.insertAdjacentHTML('beforeend', `<div class="areaInfo">
+          <h3 data-tip="areaInfo:${i}">${esc(areaName(i))}</h3>
+          <div class="meta" data-tip="areaInfo:${i}">Köpkraft ×${fmt(buyPower(i))} · <span data-r="lvl"></span></div>
+          <div class="meta" data-r="workers"></div>
+          <div class="bagWrap" data-tip="bag:${i}">${bagSVG()}<div class="bagText">Säljpåse<br><b data-r="bag"></b><br><span data-r="cap"></span></div></div>
+          <div class="meta" data-r="rate"></div>
+          <button class="buy" data-act="areaUp" data-arg="${i}" data-tip="area:${i}" data-r="btn"></button></div>`);
+        row.r = {}; el.querySelectorAll('[data-r]').forEach(x => row.r[x.dataset.r] = x);
+        row.bagFill = el.querySelector('.bagSvg .fill'); row.bagWrap = el.querySelector('.bagWrap');
+      } else {
+        el.insertAdjacentHTML('beforeend', `<div class="lockBox"><h3>🔒 ${esc(areaName(i))}</h3><p>Köpkraft ×${fmt(buyPower(i))} · ${esc(AREA_DESC[i])}</p>
+          <button class="buy" data-act="unlock" data-arg="${i}" id="unlock-${i}">Lås upp · ${kr(CONFIG.area.unlockCost[i])}</button></div>`);
+      }
+      rowsEl.appendChild(el); VIS.rows[i] = row;
+    }
+    this.updateScene(true);
+  },
+  updateScene(force) {
+    if (this._sceneKey !== sceneKey()) { this.buildScene(); return; }
+    const now = performance.now(); if (!force && now - (this._sceneT || 0) < 120) return; this._sceneT = now;
+    for (const row of VIS.rows) {
+      if (!row) continue; const i = row.i, a = S.areas[i];
+      if (!a.unlocked) { const b = $('#unlock-' + i); if (b) b.classList.toggle('can', S.cash >= CONFIG.area.unlockCost[i]); continue; }
+      const cap = bagCap(i), frac = clamp(a.bag / cap, 0, 1);
+      row.r.lvl.textContent = 'Nivå ' + a.level;
+      const w = areaWorkers(i).length;
+      row.r.workers.textContent = `Säljare ${w}/${areaSeats(i)} · Öppnar ${pctStr(openChance(i))}`;
+      row.r.bag.textContent = kr(a.bag); row.r.cap.textContent = 'av ' + kr(cap);
+      row.r.rate.textContent = `Dörrar ${fmt1(knockRate(i) * w)}/s`;
+      const h = 22 * frac; row.bagFill.setAttribute('y', 30 - h); row.bagFill.setAttribute('height', h);
+      const full = a.bag >= cap; row.bagWrap.classList.toggle('full', full); row.el.classList.toggle('isFull', full && w > 0);
+      const b = bulkInfo(CONFIG.area.upgradeBase[i], a.level);
+      row.r.btn.textContent = `Uppgradera ${b.n > 1 ? '×' + b.n + ' ' : ''}· ${kr(b.cost)}`;
+      row.r.btn.classList.toggle('can', S.cash >= b.cost);
+    }
+    // Hemma
+    const cl = CONFIG.car.ladder[S.car.tier];
+    $('#carName').textContent = cl.name;
+    $('#carSeatsTxt').textContent = `${S.sellers.filter(s => s.seated).length}/${cl.seats} platser`;
+    $('#carCapTxt').textContent = kr(carCap()) + ` (nv ${S.car.capLvl})`;
+    $('#carSpdTxt').textContent = fmt1(carSpeed()) + ` omr/s (nv ${S.car.speedLvl})`;
+    const bc = bulkInfo(CONFIG.car.capCostBase, S.car.capLvl), bs = bulkInfo(CONFIG.car.speedCostBase, S.car.speedLvl);
+    const B1 = $('#btnCarCap'), B2 = $('#btnCarSpd');
+    B1.textContent = `Kapacitet · ${kr(bc.cost)}`; B1.classList.toggle('can', S.cash >= bc.cost);
+    B2.textContent = `Fart · ${kr(bs.cost)}`; B2.classList.toggle('can', S.cash >= bs.cost);
+    $('#kassaLvl').textContent = 'Nivå ' + S.kassa.lvl;
+    $('#kassaRate').textContent = kr(kassaRate()) + '/s';
+    $('#kassaBuf').textContent = kr(S.kassa.buffer);
+    const bk = bulkInfo(CONFIG.kassa.costBase, S.kassa.lvl), BK = $('#btnKassa');
+    BK.textContent = `Uppgradera ${bk.n > 1 ? '×' + bk.n + ' ' : ''}· ${kr(bk.cost)}`; BK.classList.toggle('can', S.cash >= bk.cost);
+    const desk = $('#soranDesk .arm'); if (desk) desk.classList.toggle('counting', S.kassa.buffer > 0.5);
+    // Bänken
+    const benched = S.sellers.filter(s => !s.seated);
+    const key = benched.map(s => s.id + s.team).join(',');
+    if (key !== this._benchKey) {
+      this._benchKey = key;
+      $('#bench').innerHTML = benched.length ? benched.slice(0, 16).map(s => `<div class="benchie" data-tip="seller:${s.id}">${sellerSVG(s, true)}${esc(s.name.slice(0, 7))}</div>`).join('') + (benched.length > 16 ? `<div class="benchie">+${benched.length - 16}</div>` : '')
+        : '<span class="muted">Alla är ute och säljer!</span>';
+      $('#benchCount').textContent = benched.length + ' st';
+    }
+  },
+
+  /* ---------- Manager-raden ---------- */
+  buildManagers() {
+    const ab = k => `<button class="ability" data-act="ability" data-arg="${k}" data-tip="ab:${k}" id="ab-${k}"><span class="an">${CONFIG.abilities[k].name}</span><span class="as"></span><span class="ab"><i></i></span></button>`;
+    $('#managers').innerHTML = `
+      <div class="mgr"><div class="who"><div class="portrait" data-act="mgrUp" data-arg="soran" data-tip="mgr:soran">${portraitSVG('soran')}</div><b>Soran</b><small>Kassan</small></div>${ab('pep')}${ab('recruit')}</div>
+      <div class="mgr"><div class="who"><div class="portrait" data-act="mgrUp" data-arg="arvin" data-tip="mgr:arvin">${portraitSVG('arvin')}</div><b>Arvin</b><small>Bilen</small></div>${ab('gas')}${ab('gold')}</div>
+      <div class="mgr maxi" id="mgrMaxi"><div class="who"><div class="portrait" data-act="tab" data-arg="maxi" data-tip="mgr:maxi">${portraitSVG('maxi')}</div><b>Maxi</b><small>Teamledare</small></div><div class="mtext" id="maxiText"></div></div>`;
+  },
+  updateManagers() {
+    for (const k in CONFIG.abilities) {
+      const el = $('#ab-' + k); if (!el) continue;
+      const a = S.abilities[k], act = abilityActive(k), ready = abilityReady(k);
+      el.classList.toggle('active', act); el.classList.toggle('cd', !act && !ready);
+      const st = el.querySelector('.as'), bar = el.querySelector('i');
+      if (act) { st.textContent = 'Aktiv ' + timeStr(a.until - S.time); bar.style.width = (100 * (a.until - S.time) / abilityDuration(k)) + '%'; }
+      else if (ready) { st.textContent = k === 'gold' ? 'Redo! Välj område' : 'Redo!'; bar.style.width = '100%'; }
+      else { st.textContent = 'Vila ' + timeStr(a.ready - S.time); bar.style.width = (100 * (1 - (a.ready - S.time) / abilityCooldown(k))) + '%'; }
+    }
+    const mt = $('#maxiText'), m = $('#mgrMaxi');
+    m.classList.toggle('gone', !S.maxi.active);
+    const txt = S.maxi.active ? `Peppar alla som säljer: <span>+${pctStr(maxiPep(), 1)}</span> säljprocent<br>${S.sellers.filter(s => s.maxi).length} egna säljare` : 'Maxi har lämnat LjusCo.<br>Ingen pepp längre.';
+    if (mt.innerHTML !== txt) mt.innerHTML = txt;
+  },
+
+  /* ---------- Toppbaren ---------- */
+  updateTop() {
+    $('#tCash').textContent = kr(S.cash);
+    $('#tIncome').textContent = kr(S.incomeRate) + '/s';
+    $('#tWeekLbl').textContent = 'Vecka ' + S.week.n;
+    $('#tWeek').textContent = timeStr(CONFIG.week.length - S.week.t);
+    $('#tRykte').textContent = '★ ' + S.rykte + (S.rykte ? ` (+${Math.round((rykteMult() - 1) * 100)} %)` : '');
+    $('#tCity').textContent = city().name;
+    for (const b of $('#buyMode').children) b.classList.toggle('on', String(S.buyMode) === b.dataset.arg);
+    // effektchips
+    const chips = [];
+    const names = { lonedag: ['Lönedag', 'good'], jul: ['Julstämning', 'good'], granne: ['Grannchatten', 'good'], regn: ['Regnväder', 'bad'], punka: ['Punka', 'bad'], evict: ['Utkastad', 'bad'], slut: ['Leverantören har slut', 'bad'] };
+    for (const e of S.effects) { const n = names[e.type]; if (!n) continue; chips.push(`<span class="chip ${n[1]}">${n[0]}${e.area !== undefined ? ' – ' + esc(areaName(e.area)) : ''}${e.name ? ' – ' + esc(e.name) : ''} ${timeStr(e.until - S.time)}</span>`); }
+    for (const k of ['pep', 'gas', 'gold']) if (abilityActive(k)) chips.push(`<span class="chip ability">${CONFIG.abilities[k].name}${k === 'gold' ? ' – ' + esc(areaName(S.goldArea)) : ''} ${timeStr(S.abilities[k].until - S.time)}</span>`);
+    if (canPrestige()) chips.push(`<span class="chip good" style="cursor:pointer" data-act="tab" data-arg="rapport">Ny stad tillgänglig!</span>`);
+    const shown = chips.length > 4 ? chips.slice(0, 3).concat(`<span class="chip" data-tip="effects">+${chips.length - 3} till</span>`) : chips;
+    const html = shown.join('');
+    if (html !== this._chips) { this._chips = html; $('#effects').innerHTML = html; }
+  },
+
+  /* ---------- Sidopanelen ---------- */
+  setTab(k) { S.tab = k; for (const [t] of TABS) $('#tab-' + t).classList.toggle('on', t === k); lastPanelHTML = ''; this.refreshPanel(true); $('#tabBody').scrollTop = 0; },
+  refreshPanel(force) {
+    if (pointerDown && !force) return;
+    const html = PANELS[S.tab]();
+    if (html !== lastPanelHTML) { lastPanelHTML = html; $('#tabBody').innerHTML = html; }
+    const dot = $('#tab-coach'); // markera flikar med något nytt
+    const coachNew = S.areas[1].unlocked && !S.coach.hired;
+    if (dot && !!dot.querySelector('.dot') !== coachNew) dot.innerHTML = 'Coach' + (coachNew ? '<span class="dot"></span>' : '');
+    const rp = $('#tab-rapport'); const pr = canPrestige();
+    if (rp && !!rp.querySelector('.dot') !== pr) rp.innerHTML = 'Rapport' + (pr ? '<span class="dot"></span>' : '');
+  },
+
+  /* ---------- Modaler och toasts ---------- */
+  modal(title, body, buttons = [{ label: 'OK' }], opts = {}) { modalQueue.push({ title, body, buttons, opts }); if (!modalOpen) this.nextModal(); },
+  nextModal() {
+    const L = $('#modalLayer'); const m = modalQueue.shift();
+    if (!m) { modalOpen = false; paused = false; L.classList.remove('on'); L.innerHTML = ''; return; }
+    modalOpen = true; paused = !!m.opts.pause;
+    L.innerHTML = `<div class="modal" style="${m.opts.width ? 'width:' + m.opts.width + 'px' : ''}"><h2>${m.title}</h2><div>${m.body}</div><div class="mbtns">${m.buttons.map((b, i) => `<button class="${b.cls || 'orange'}" data-mb="${i}">${b.label}</button>`).join('')}</div></div>`;
+    L.classList.add('on');
+    L.querySelectorAll('[data-mb]').forEach(btn => btn.onclick = () => { const b = m.buttons[+btn.dataset.mb]; const keep = b.fn ? b.fn(L) : false; if (keep !== true) this.nextModal(); this.refreshPanel(true); this.updateScene(true); });
+    if (m.opts.onOpen) m.opts.onOpen(L);
+  },
+  confirm(title, body, yes, label = 'Ja', cls = 'red') { this.modal(title, body, [{ label: 'Avbryt', cls: '' }, { label, cls, fn: yes }]); },
+  toast(title, text, kind = '', btn) {
+    const t = document.createElement('div'); t.className = 'toast ' + kind;
+    t.innerHTML = `<b>${title}</b>${text}`;
+    if (btn) { const b = document.createElement('button'); b.className = 'orange'; b.textContent = btn.label; b.onclick = () => { if (btn.fn() !== false) close(); }; t.appendChild(b); }
+    const box = $('#toasts'); box.prepend(t);
+    while (box.children.length > 5) box.lastChild.remove();
+    const close = () => { t.classList.add('out'); setTimeout(() => t.remove(), 350); };
+    setTimeout(close, btn ? 12000 : 6500);
+  },
+  eventToast(ev) {
+    if (ev.id === 'punka') this.toast('🛞 ' + ev.title, ev.text, 'bad', { label: `Laga direkt · ${kr(flatFixCost())}`, fn: () => { if (!fixFlat()) { this.toast('För lite pengar', 'Arvin får vänta på bärgaren.', 'bad'); return false; } this.toast('Fixat!', 'Arvin är på väg igen.', 'good'); } });
+    else this.toast((ev.good ? '✨ ' : '⚠️ ') + ev.title, ev.text, ev.good ? 'good' : 'bad');
+  },
+  rankingPopup(info) {
+    const A = S.sellers.filter(s => s.team === 'A').sort((a, b) => a.rank - b.rank), B = S.sellers.filter(s => s.team === 'B').sort((a, b) => a.rank - b.rank);
+    const rate = new Map(info.ranking.map(r => [r.s.id, r]));
+    const li = s => { const r = rate.get(s.id); return `<li>${esc(s.name)} ${s.maxi ? maxiMini() : ''} <span>${r ? fmt1(r.rate) + ' kl/min' : info.trial.includes(s.name) ? 'provvecka' : 'jobbade inte, behåller plats'}</span></li>`; };
+    const top = info.ranking[0];
+    const r = S.report.last;
+    let body = `<p>${pick(CONFIG.rankQuips)}</p>`;
+    if (top) body += `<p>🏆 Veckans säljare: <b>${esc(top.s.name)}</b> med ${fmt1(top.rate)} klasar per arbetad minut (${top.sold} st)!</p>`;
+    body += `<div class="rankList"><div><b>A-laget (30 %)</b><ol>${A.map(li).join('')}</ol></div><div><b>B-laget / Utvecklingslaget (25 %)</b><ol>${B.map(li).join('') || '<li>Ingen!</li>'}</ol></div></div>`;
+    if (info.trained.length) body += `<p>🏋️ Coachen tränade ${info.trained.length} säljare i B-laget (+${pctStr(coachTrain(), 1)} var).</p>`;
+    body += `<p class="muted">Vecka ${info.week}: ${fmt(r.clusters)} klasar · försäljning ${kr(r.gross)} · vinst ${kr(r.profit)}. Nya kandidater väntar i Personal-fliken.</p>`;
+    this.modal(`Vecka ${info.week} är slut!`, body, [{ label: 'Kör vecka ' + (info.week + 1) + '!' }], { width: 600 });
+  },
+  tutorial() {
+    const lines = [
+      'Tjena! Jag är <b>Soran</b>. Välkommen till <b>LjusCo</b>, vi säljer ljusklasar dörr till dörr i Göteborg. Jag och Arvin driver det här, och nu är det du som styr!',
+      'Våra säljare knackar dörr i områdena. Ungefär <b>var fjärde dörr öppnas</b>, och då avgör säljarens <b>säljprocent</b> om det blir köp. Därför knackar de på MÅNGA dörrar!',
+      'Vinsten hamnar i områdets <b>säljpåse</b>. <b>Arvin</b> kör runt med bilen och hämtar pengarna, och här hemma räknar jag in dem i <b>kassan</b>. Uppgradera alla tre stegen!',
+      'Bilen bestämmer hur många säljare som får åka med. Resten sitter på <b>bänken</b>. Varje spelvecka (3 min) rankas säljarna in i <b>A-laget</b> och <b>B-laget</b>.',
+      '<b>Maxi</b> är vår teamledare. Han peppar gänget och hittar nya säljare. Använd mina och Arvins förmågor längst ner, och lås upp <b>Hisingen</b> för 5 000 kr. Lycka till!',
+    ];
+    const show = k => this.modal(k === 0 ? 'Välkommen till LjusCo!' : `Soran (${k + 1}/5)`,
+      `<div class="speech"><div class="bigPortrait">${portraitSVG('soran')}</div><div class="bubble">${lines[k]}</div></div>`,
+      k < lines.length - 1 ? [{ label: 'Hoppa över', cls: 'ghost', fn: () => { S.tutorialDone = true; } }, { label: 'Nästa', fn: () => { show(k + 1); } }] : [{ label: 'Nu kör vi!', fn: () => { S.tutorialDone = true; save(); } }],
+      { pause: true, width: 560 });
+    show(0);
+  },
+};
+function sceneKey() { return S.cityIdx + ':' + S.areas.map(a => a.unlocked ? 1 : 0).join(''); }
+function fmt1(n) { return n < 100 ? (Math.round(n * 10) / 10).toString().replace('.', ',') : fmt(n); }
+function bagSVG() { return `<svg class="bagSvg" width="34" height="36" viewBox="0 0 34 36"><path d="M10 4 Q17 9 24 4 L22 9 Q30 14 30 24 Q30 34 17 34 Q4 34 4 24 Q4 14 12 9Z" fill="#c9915a" stroke="#7a4f2a" stroke-width="1.5"/><clipPath id="bc"><path d="M12 9 Q4 14 4 24 Q4 34 17 34 Q30 34 30 24 Q30 14 22 9Z"/></clipPath><rect class="fill" clip-path="url(#bc)" x="0" y="30" width="34" height="0" fill="#4fb36a"/><path d="M12 9 Q4 14 4 24 Q4 34 17 34 Q30 34 30 24 Q30 14 22 9Z" fill="none" stroke="#7a4f2a" stroke-width="1.5"/><text x="17" y="27" font-size="10" font-weight="900" text-anchor="middle" fill="#fff">kr</text></svg>`; }
+function deskSVG() {
+  return `<svg width="140" height="124" viewBox="0 0 140 124">
+    <ellipse cx="70" cy="118" rx="60" ry="6" fill="rgba(0,0,0,.18)"/>
+    <circle cx="70" cy="36" r="17" fill="#d9a47a"/><path d="M53 33 Q54 17 70 17 Q86 17 87 33 Q82 24 70 24 Q58 24 53 33Z" fill="#1d120c"/>
+    <path d="M56 40 Q58 53 70 53 Q82 53 84 40 Q82 49 70 49 Q58 49 56 40Z" fill="#2a1a10"/>
+    <circle cx="64" cy="37" r="1.8" fill="#222"/><circle cx="76" cy="37" r="1.8" fill="#222"/>
+    <path d="M50 76 Q52 54 70 54 Q88 54 90 76Z" fill="#ff8a3d"/>
+    <g class="arm"><rect x="84" y="60" width="22" height="8" rx="4" fill="#ff8a3d"/><circle cx="107" cy="64" r="5" fill="#d9a47a"/></g>
+    <rect x="18" y="72" width="104" height="42" rx="6" fill="#8a5a3a"/><rect x="18" y="72" width="104" height="8" rx="4" fill="#a8744c"/>
+    <rect x="86" y="56" width="32" height="18" rx="3" fill="#5a6b7a"/><rect x="90" y="59" width="24" height="7" rx="1" fill="#9fe39a"/>
+    <rect x="28" y="62" width="22" height="12" rx="2" fill="#4fb36a"/><rect x="30" y="58" width="22" height="12" rx="2" fill="#5fc47a"/><text x="41" y="67" font-size="7" font-weight="900" text-anchor="middle" fill="#fff">kr</text>
+    <text x="70" y="100" font-size="11" font-weight="900" text-anchor="middle" fill="#ffe7b8">KASSAN</text></svg>`;
+}
+const AREA_DESC = ['Mysiga landshövdingehus', 'Röda tegelhus', 'Höga punkthus', 'Färgglada höghus', 'Stjärnhus på rad', 'Långa lamellhus', 'Villor med trädgård', 'Fina gamla villor'];
+
+/* ---------- Tooltips ---------- */
+function tipFor(key) {
+  const [k, a] = key.split(':'); const i = +a;
+  const ms = L => { const m = nextMilestone(L); return m ? `\nNästa milstolpe: nivå ${m}` : ''; };
+  switch (k) {
+    case 'area': {
+      const L = S.areas[i].level, b = bulkInfo(CONFIG.area.upgradeBase[i], L), N = L + b.n;
+      const m = nextMilestone(L);
+      return `<b>${esc(areaName(i))} nivå ${L} → ${N}</b>\nDörrtakt: ${fmt1(knockRateAt(L))} → ${fmt1(knockRateAt(N))} knack/s per säljare\nSäljpåse: ${kr(bagCapAt(i, L))} → ${kr(bagCapAt(i, N))}\nSäljarplatser: ${areaSeatsAt(L)} → ${areaSeatsAt(N)}${m ? `\nMilstolpe nivå ${m}: dubbel dörrtakt${CONFIG.area.seatsAt.includes(m) ? ' + 1 säljarplats' : ''}` : ''}\nKostnad: ${kr(b.cost)}`;
+    }
+    case 'areaInfo': { const w = areaWorkers(i); return `<b>${esc(areaName(i))}</b>\nKöpkraft ×${fmt(buyPower(i))}: en ${esc(product().name.toLowerCase())} kostar här ${kr(salePrice(i))}\nÖppnar dörren: ${pctStr(openChance(i))}\nSäljare här: ${w.map(s => esc(s.name)).join(', ') || 'ingen'}`; }
+    case 'bag': return `<b>Säljpåse</b>\nVinsten från försäljningarna samlas här tills Arvin hämtar den.\nNär påsen är full slutar säljarna sälja!`;
+    case 'carCap': { const L = S.car.capLvl, b = bulkInfo(CONFIG.car.capCostBase, L); return `<b>Bilens kapacitet nivå ${L} → ${L + b.n}</b>\n${kr(carCapAt(L))} → ${kr(carCapAt(L + b.n))} per tur${ms(L)}: dubbel kapacitet\nKostnad: ${kr(b.cost)}`; }
+    case 'carSpeed': { const L = S.car.speedLvl, b = bulkInfo(CONFIG.car.speedCostBase, L); return `<b>Bilens fart nivå ${L} → ${L + b.n}</b>\n${fmt1(carSpeedAt(L))} → ${fmt1(carSpeedAt(L + b.n))} områden/s${ms(L)}: dubbel fart\nKostnad: ${kr(b.cost)}`; }
+    case 'kassa': { const L = S.kassa.lvl, b = bulkInfo(CONFIG.kassa.costBase, L); return `<b>Kassan nivå ${L} → ${L + b.n}</b>\nSoran räknar ${kr(kassaRateAt(L))}/s → ${kr(kassaRateAt(L + b.n))}/s${ms(L)}: dubbel takt\nKostnad: ${kr(b.cost)}`; }
+    case 'ab': {
+      const c = CONFIG.abilities[a], st = S.abilities[a];
+      const d = { pep: `Alla säljares säljprocent ×1,25 (max 60 %) i ${abilityDuration(a)} s.`, recruit: '3 nya kandidater direkt med 25–45 % säljprocent.', gas: `Bilen åker 3× snabbare i ${abilityDuration(a)} s.`, gold: `Dubbelt så många dörrar öppnas i valt område i ${abilityDuration(a)} s (max 50 %).` }[a];
+      return `<b>${c.name}</b> (nivå ${st.lvl})\n${d}\nCooldown: ${timeStr(abilityCooldown(a))}\nUppgradera genom att klicka på porträttet.`;
+    }
+    case 'mgr': return { soran: '<b>Soran</b>\nKlicka för att uppgradera Sorans förmågor.', arvin: '<b>Arvin</b>\nKlicka för att uppgradera Arvins förmågor.', maxi: '<b>Maxi</b>\nKlicka för att öppna Maxi-fliken.' }[a];
+    case 'seller': { const s = S.sellers.find(x => x.id === i); if (!s) return ''; return `<b>${esc(s.name)}</b> ${s.team}-laget\nSäljprocent ${pctStr(s.pct)} (just nu ${pctStr(salePct(s, s.area), 1)})\nSitter på bänken.`; }
+    case 'maxiIcon': return '<b>Maxis säljare</b>\nMaxi värvade den här säljaren och får 17,5 % i stället för 10 %.';
+    case 'week': return `<b>Spelvecka</b>\n1 vecka = 3 minuter. När veckan är slut rankas säljarna efter klasar per arbetad minut och nya kandidater dyker upp.`;
+    case 'rykte': return `<b>Rykte</b>\nFås när du expanderar till en ny stad.\nVarje stjärna ger +${Math.round(CONFIG.prestige.perRykte * 100)} % inkomst för alltid.`;
+    case 'buymode': return '<b>Köpmängd</b>\nHur många nivåer en uppgraderingsknapp köper: 1, 10, 50 eller MAX (så många du har råd med).';
+    case 'prod': { const p = CONFIG.products[i]; return `<b>${esc(p.name)}</b>\nBaspris ${kr(p.price)} per klase\nI ${esc(areaName(unlockedCount() - 1))}: ${kr(p.price * buyPower(unlockedCount() - 1))}\nSäljpåsarnas tak följer produktens pris.`; }
+    case 'tier': { const t = CONFIG.car.ladder[i]; return `<b>${t.name}</b>\n${t.seats} platser = ${t.seats} säljare kan jobba samtidigt.`; }
+    case 'effects': { const n = { lonedag: 'Lönedag', jul: 'Julstämning', granne: 'Grannchatten', regn: 'Regnväder', punka: 'Punka', evict: 'Utkastad', slut: 'Leverantören har slut' };
+      return '<b>Aktiva effekter</b>\n' + S.effects.map(e => `${n[e.type]}${e.area !== undefined ? ' – ' + esc(areaName(e.area)) : ''}${e.name ? ' – ' + esc(e.name) : ''}: ${timeStr(e.until - S.time)}`).concat(['pep', 'gas', 'gold'].filter(abilityActive).map(k => `${CONFIG.abilities[k].name}: ${timeStr(S.abilities[k].until - S.time)}`)).join('\n'); }
+    case 'units': return 'tn = tusen, mn = miljoner, md = miljarder, bn = biljoner, bd = biljarder';
+  }
+  return '';
+}
+
+/* ---------- Panelernas innehåll ---------- */
+const PANELS = {
+  personal() {
+    const seated = S.sellers.filter(s => s.seated).length;
+    let h = `<div class="sec"><h3>Personal <span class="muted">${S.sellers.length} säljare</span></h3>
+      <p>I bilen: <b>${seated}/${carSeats()}</b> platser · A-laget: ${S.sellers.filter(s => s.team === 'A').length} st</p>
+      <div class="btns"><button class="small" data-act="autoDist">Fördela automatiskt</button><button class="small" data-act="resetPins">Automatiska bilplatser</button></div></div>`;
+    h += `<div class="sec"><h3>Kandidater <span class="muted">nya om ${timeStr(CONFIG.week.length - S.week.t)}</span></h3>`;
+    if (!S.candidates.length) h += `<p>Inga kandidater kvar den här veckan.</p>`;
+    else h += `<div class="cands">${S.candidates.map((c, i) => `<div class="cand"><b>${esc(c.name)}</b>${starsHTML(c.pct)}<span class="muted">${pctStr(c.pct)} säljprocent</span>
+        ${c.via ? (c.via.type === 'maxi' ? `<span class="via maxi">Via Maxi</span>` : `<span class="via" data-tip="">Via ${esc(c.via.name)}</span>`) : '<span class="via" style="visibility:hidden">-</span>'}
+        <button class="buy ${S.cash >= c.cost ? 'can' : ''}" data-act="hire" data-arg="${i}">Anställ · ${kr(c.cost)}</button></div>`).join('')}</div>`;
+    h += `<p class="muted">"Via Maxi" blir Maxis säljare. "Via [säljare]" ger värvaren 10 % av rekryteringens försäljning första veckan.</p></div>`;
+    const list = [...S.sellers].sort((a, b) => (a.team === 'A' ? 0 : 1) - (b.team === 'A' ? 0 : 1) || a.rank - b.rank);
+    h += `<div class="sec"><h3>Säljarna</h3>${list.map(s => {
+      const ev = s.evictedUntil > S.time;
+      const status = !s.seated ? '<span class="badge bench">På bänken</span>' : ev ? '<span class="badge evict">Utkastad</span>' : '<span class="badge seat">I bilen</span>';
+      const trial = s.trialUntil > S.time ? '<span class="badge trial">Provvecka</span>' : '';
+      const pin = s.pin ? ' 📌' : '';
+      const rec = s.recruitUntil > S.time && s.recruitedBy != null ? `<span class="muted">värvad av ${esc((S.sellers.find(x => x.id === s.recruitedBy) || { name: '?' }).name)}</span>` : '';
+      return `<div class="sellerCard"><div class="l1">${s.maxi ? maxiMini() : ''}<b>${esc(s.name)}</b>${starsHTML(s.pct)}<span class="muted">${pctStr(s.pct)}</span><span class="badge ${s.team}">${s.team}-lag</span>${trial}${status}${pin}</div>
+        <div class="l2">${esc(areaName(s.area))} · denna vecka ${s.week.sold} st · ${fmt1(perMin(s))}/min · totalt ${fmt(s.total.sold)} st${s.week.bonus > 0 ? ` · bonus ${kr(s.week.bonus)}` : ''} ${rec}</div>
+        <div class="l3"><button class="small" data-act="move" data-arg="${s.id}">Flytta</button>
+        <button class="small" data-act="seat" data-arg="${s.id}">${s.seated ? 'Till bänken' : 'Ta med i bilen'}</button>
+        <button class="small red" data-act="fire" data-arg="${s.id}" ${S.sellers.length <= 1 ? 'disabled' : ''}>Sparka</button></div></div>`;
+    }).join('')}</div>`;
+    return h;
+  },
+  maxi() {
+    const M = S.maxi;
+    let h = `<div class="sec"><div style="display:flex;gap:12px;align-items:center"><div class="bigPortrait">${portraitSVG('maxi')}</div><div>
+      <h3>Maxi <span class="badge ${M.active ? 'seat' : 'evict'}">${M.active ? 'Teamledare' : 'Har lämnat'}</span></h3>
+      <p>${M.active ? pick(CONFIG.maxiPepLines.slice(0, 1)) + '<br>Maxi säljer inte själv och tar ingen bilplats.' : 'Samarbetet med Maxi är avslutat. Han kommer inte tillbaka.'}</p></div></div></div>`;
+    if (M.active) {
+      const maxed = M.pepLvl >= CONFIG.maxi.pepLevels.length - 1;
+      h += `<div class="sec"><h3>Peppbonus</h3><p>Alla säljare som är ute och jobbar får <b>+${pctStr(maxiPep(), 1)}</b> säljprocent (relativt). Taket 60 % gäller.</p>
+        <div class="upRow"><div class="tx">Höj peppen<small>${maxed ? 'Max!' : `+${pctStr(maxiPep(), 1)} → +${pctStr(CONFIG.maxi.pepLevels[M.pepLvl + 1], 1)}`}</small></div>
+        <button class="buy ${!maxed && S.cash >= maxiPepCost() ? 'can' : ''}" data-act="maxiUp" ${maxed ? 'disabled' : ''}>${maxed ? 'Max' : kr(maxiPepCost())}</button></div></div>`;
+      const r = S.report.cur;
+      h += `<div class="sec"><h3>Maxis andel denna vecka</h3><table class="rep">
+        <tr><td>På hans egna säljare (17,5 %)</td><td>${kr(r.maxiOwn)}</td></tr><tr><td>På övriga säljare (10 %)</td><td>${kr(r.maxiOther)}</td></tr>
+        <tr class="tot"><td>Totalt</td><td>${kr(r.maxiOwn + r.maxiOther)}</td></tr></table>
+        <p class="muted">Andelen räknas på beloppet efter provision och 20 % kostnadsavdrag.</p></div>`;
+      const mine = S.sellers.filter(s => s.maxi);
+      h += `<div class="sec"><h3>Maxis säljare (${mine.length})</h3>${mine.map(s => `<div class="sellerCard"><div class="l1">${maxiMini()}<b>${esc(s.name)}</b>${starsHTML(s.pct)}<span class="muted">${pctStr(s.pct)}</span><span class="badge ${s.team}">${s.team}-lag</span></div></div>`).join('') || '<p>Inga just nu.</p>'}
+        <p class="muted">Varje vecka hittar Maxi minst en kandidat ("Via Maxi").</p></div>`;
+      h += `<div class="sec"><h3>Avsluta samarbetet</h3><p>Då försvinner hans andel och hans pepp, han slutar ta in kandidater och hans säljare blir vanliga säljare. Han kan inte anställas tillbaka.</p>
+        <div class="btns"><button class="red small" data-act="endMaxi">Avsluta samarbetet med Maxi</button></div></div>`;
+    }
+    return h;
+  },
+  produkter() {
+    let h = `<div class="sec"><h3>Produkter</h3><p>Alla säljare säljer alltid den bästa produkten ni har låst upp. Priset gånger områdets köpkraft blir försäljningspriset.</p></div><div class="sec"><div class="ladder">`;
+    CONFIG.products.forEach((p, i) => {
+      const cur = i === S.product, owned = i < S.product, next = i === S.product + 1;
+      h += `<div class="lrow ${cur ? 'cur' : owned ? 'owned' : ''}" data-tip="prod:${i}"><div class="ic">${productIcon(p.id, 34)}</div><div class="tx"><b>${esc(p.name)}</b><small>${kr(p.price)} per klase${cur ? ' · säljs nu' : ''}</small></div>
+        ${next ? `<button class="buy ${S.cash >= p.cost ? 'can' : ''}" data-act="product">Köp · ${kr(p.cost)}</button>` : owned || cur ? '<span class="muted">✓</span>' : `<span class="muted">${kr(p.cost)}</span>`}</div>`;
+    });
+    return h + '</div></div>';
+  },
+  bilen() {
+    const c = S.car;
+    let h = `<div class="sec"><div style="display:flex;gap:12px;align-items:center"><div class="bigPortrait">${portraitSVG('arvin')}</div><div><h3>Bilen</h3>
+      <p>Arvin kör till områdena i tur och ordning, hämtar säljpåsarna och kör hem till kassan. Platserna bestämmer hur många säljare som jobbar samtidigt.</p></div></div></div>`;
+    h += `<div class="sec"><h3>Fordon</h3><div class="ladder">${CONFIG.car.ladder.map((t, i) => {
+      const cur = i === c.tier, owned = i < c.tier, next = i === c.tier + 1;
+      return `<div class="lrow ${cur ? 'cur' : owned ? 'owned' : ''}" data-tip="tier:${i}"><div class="ic" style="overflow:hidden"><div style="transform:rotate(-90deg) scale(.42)">${carSVG(i)}</div></div><div class="tx"><b>${t.name}</b><small>${t.seats} platser${cur ? ' · kör nu' : ''}</small></div>
+        ${next ? `<button class="buy ${S.cash >= t.cost ? 'can' : ''}" data-act="carTier">Köp · ${kr(t.cost)}</button>` : owned || cur ? '<span class="muted">✓</span>' : `<span class="muted">${kr(t.cost)}</span>`}</div>`;
+    }).join('')}</div></div>`;
+    const bc = bulkInfo(CONFIG.car.capCostBase, c.capLvl), bs = bulkInfo(CONFIG.car.speedCostBase, c.speedLvl);
+    h += `<div class="sec"><h3>Uppgraderingar</h3>
+      <div class="upRow"><div class="tx">Kapacitet nivå ${c.capLvl}<small>${kr(carCap())} per tur</small></div><button class="buy ${S.cash >= bc.cost ? 'can' : ''}" data-act="carUp" data-arg="cap" data-tip="carCap">${bc.n > 1 ? '×' + bc.n + ' · ' : ''}${kr(bc.cost)}</button></div>
+      <div class="upRow"><div class="tx">Hastighet nivå ${c.speedLvl}<small>${fmt1(carSpeed())} områden/s</small></div><button class="buy ${S.cash >= bs.cost ? 'can' : ''}" data-act="carUp" data-arg="speed" data-tip="carSpeed">${bs.n > 1 ? '×' + bs.n + ' · ' : ''}${kr(bs.cost)}</button></div></div>`;
+    h += abilityUpgradesHTML('arvin');
+    return h;
+  },
+  coach() {
+    const C = S.coach, cfg = CONFIG.coach;
+    if (!S.areas[1].unlocked) return `<div class="sec"><h3>Säljcoach 🔒</h3><p>Coachen kan anställas när ni har låst upp ${esc(areaName(1))}.</p></div>`;
+    if (!C.hired) return `<div class="sec"><h3>Säljcoach</h3><p>Coachen tränar hela B-laget, även de på bänken. Deras säljprocent ökar lite varje spelvecka upp till ett tak (35 % från början).</p>
+      <p>Kostnad: <b>5 % av all försäljning</b> + anställning ${kr(cfg.hireCost)}.</p><div class="btns"><button class="buy ${S.cash >= cfg.hireCost ? 'can' : ''}" data-act="hireCoach">Anställ coach · ${kr(cfg.hireCost)}</button></div></div>`;
+    const capMax = C.capLvl >= cfg.capMaxLevel, trMax = C.trainLvl >= cfg.trainMaxLevel;
+    let h = `<div class="sec"><h3>Säljcoach <span class="badge seat">Anställd</span></h3><p>Tränar B-laget med <b>+${pctStr(coachTrain(), 1)}</b> per vecka upp till <b>${pctStr(coachCap())}</b>. Kostar 5 % av försäljningspriset.</p>
+      <div class="upRow"><div class="tx">Höj taket<small>${capMax ? 'Max (60 %)' : pctStr(coachCap()) + ' → ' + pctStr(coachCap() + cfg.capStep)}</small></div><button class="buy ${!capMax && S.cash >= coachCapCost() ? 'can' : ''}" data-act="coachUp" data-arg="cap" ${capMax ? 'disabled' : ''}>${capMax ? 'Max' : kr(coachCapCost())}</button></div>
+      <div class="upRow"><div class="tx">Snabbare träning<small>${trMax ? 'Max' : '+' + pctStr(coachTrain(), 1) + ' → +' + pctStr(coachTrain() + cfg.trainStep, 1) + ' per vecka'}</small></div><button class="buy ${!trMax && S.cash >= coachTrainCost() ? 'can' : ''}" data-act="coachUp" data-arg="train" ${trMax ? 'disabled' : ''}>${trMax ? 'Max' : kr(coachTrainCost())}</button></div></div>`;
+    const B = S.sellers.filter(s => s.team === 'B');
+    h += `<div class="sec"><h3>B-laget (${B.length})</h3>${B.map(s => `<div class="sellerCard"><div class="l1"><b>${esc(s.name)}</b>${starsHTML(s.pct)}<span class="muted">${pctStr(s.pct, 1)} / ${pctStr(coachCap())}</span></div><div class="prog"><i style="width:${Math.min(100, 100 * s.pct / coachCap())}%"></i></div></div>`).join('') || '<p>Ingen i B-laget just nu.</p>'}</div>`;
+    return h;
+  },
+  rapport() {
+    const row = (r, w) => `<table class="rep"><tr><th>${w}</th><th></th></tr>
+      <tr><td>Sålda klasar</td><td>${fmt(r.clusters)} st</td></tr>
+      <tr><td>Total försäljning</td><td>${kr(r.gross)}</td></tr>
+      <tr><td>Utbetald provision</td><td>−${kr(r.commission)}</td></tr>
+      <tr><td>Maxis andel</td><td>−${kr(r.maxiOwn + r.maxiOther)}</td></tr>
+      <tr class="sub"><td>varav hans egna säljare</td><td>${kr(r.maxiOwn)}</td></tr>
+      <tr class="sub"><td>varav övriga säljare</td><td>${kr(r.maxiOther)}</td></tr>
+      <tr><td>Coachens andel</td><td>−${kr(r.coach)}</td></tr>
+      <tr><td>Värvningsbonusar</td><td>−${kr(r.recruit)}</td></tr>
+      <tr class="tot"><td>Vinst (till säljpåsarna)</td><td>${kr(r.profit)}</td></tr>
+      ${r.rykteBonus > 0 ? `<tr><td>Rykte-bonus i kassan</td><td>+${kr(r.rykteBonus)}</td></tr>` : ''}</table>`;
+    let h = `<div class="sec"><h3>Veckorapport <span class="muted">vecka ${S.week.n} pågår</span></h3>${row(S.report.cur, 'Denna vecka')}</div>`;
+    if (S.report.last) h += `<div class="sec">${row(S.report.last, 'Förra veckan (v. ' + S.report.last.week + ')')}</div>`;
+    const ex = splitSale(200, { team: 'A', maxi: false, recruitedBy: null });
+    h += `<div class="sec"><h3>Så räknas en försäljning</h3><p>Exempel: vit klase 200 kr i ${esc(areaName(0))}, A-lagare (ej Maxis säljare): provision ${krExact(ex.commission)}, Maxi ${krExact(ex.maxiOwn + ex.maxiOther)}${S.coach.hired ? ', coach ' + krExact(ex.coach) : ''}, vinst <b>${krExact(ex.profit)}</b>.</p></div>`;
+    // Prestige
+    const gain = prestigeGain(), ok = canPrestige(), nc = CONFIG.cities[nextCityIdx()];
+    h += `<div class="sec"><h3>Ny stad 🏙️</h3><p>Intjänat i ${esc(city().name)}: <b>${kr(S.cityEarned)}</b> (krävs ${kr(CONFIG.prestige.minEarned)})</p>
+      <div class="prog"><i style="width:${Math.min(100, 100 * S.cityEarned / CONFIG.prestige.minEarned)}%"></i></div>
+      <p>Expandera till <b>${esc(nc.name)}</b> och få <b>★ ${gain} Rykte</b> (+${Math.round(gain * CONFIG.prestige.perRykte * 100)} % inkomst för alltid).</p>
+      <div class="btns"><button class="${ok ? 'orange' : ''}" data-act="prestige" ${ok ? '' : 'disabled'}>Expandera till ${esc(nc.name)}</button></div></div>`;
+    const A = S.report.all;
+    h += `<div class="sec"><h3>Statistik</h3><table class="rep">
+      <tr><td>Totalt intjänat</td><td>${kr(S.totalEarned)}</td></tr><tr><td>Sålda klasar totalt</td><td>${fmt(A.clusters)}</td></tr>
+      <tr><td>Total försäljning</td><td>${kr(A.gross)}</td></tr><tr><td>Total provision</td><td>${kr(A.commission)}</td></tr>
+      <tr><td>Maxi totalt</td><td>${kr(A.maxiOwn + A.maxiOther)}</td></tr><tr><td>Coach totalt</td><td>${kr(A.coach)}</td></tr>
+      <tr><td>Anställda / sparkade</td><td>${S.stats.hired} / ${S.stats.fired}</td></tr><tr><td>Slumphändelser</td><td>${S.stats.events}</td></tr>
+      <tr><td>Städer expanderade</td><td>${S.stats.prestiges}</td></tr><tr><td>Speltid</td><td>${Math.floor(S.time / 3600)} h ${Math.floor(S.time % 3600 / 60)} min</td></tr></table></div>`;
+    return h;
+  },
+};
+function abilityUpgradesHTML(who) {
+  let h = `<div class="sec"><h3>${who === 'soran' ? 'Sorans' : 'Arvins'} förmågor</h3>`;
+  for (const k in CONFIG.abilities) {
+    const c = CONFIG.abilities[k]; if (c.who !== who) continue;
+    const st = S.abilities[k], max = st.lvl >= c.maxLevel, cost = abilityUpCost(k);
+    const nx = max ? 'Max' : `${c.duration ? `Tid ${abilityDuration(k)} s → ${abilityDuration(k) + c.durStep} s · ` : ''}Cooldown ${timeStr(abilityCooldown(k))} → ${timeStr(c.cooldown * (1 - c.cdStep * (st.lvl + 1)))}`;
+    h += `<div class="upRow"><div class="tx">${c.name} nivå ${st.lvl}<small>${nx}</small></div><button class="buy ${!max && S.cash >= cost ? 'can' : ''}" data-act="abUp" data-arg="${k}" ${max ? 'disabled' : ''}>${max ? 'Max' : kr(cost)}</button></div>`;
+  }
+  return h + '</div>';
+}
+
+/* ---------- Knapptryck ---------- */
+const ACT = {
+  tab: k => UI.setTab(k),
+  buyMode: m => { S.buyMode = m === 'max' ? 'max' : +m; },
+  areaUp: i => upgradeArea(+i),
+  unlock: i => unlockArea(+i),
+  carUp: k => upgradeCar(k),
+  kassaUp: () => upgradeKassa(),
+  product: () => buyProduct(),
+  carTier: () => buyCarTier(),
+  hireCoach: () => { if (hireCoach()) UI.toast('Coachen är anställd!', 'B-laget tränas nu varje vecka.', 'good'); },
+  coachUp: k => upgradeCoach(k),
+  maxiUp: () => upgradeMaxi(),
+  abUp: k => upgradeAbility(k),
+  hire: i => { if (!hire(+i)) UI.toast('För lite pengar', 'Sälj lite mer först!', 'bad'); },
+  autoDist: () => { autoDistribute(); UI.toast('Fördelat!', 'De bästa säljarna står nu i områdena med högst köpkraft.', 'good'); },
+  resetPins: () => { S.sellers.forEach(s => s.pin = 0); seatsDirty = true; },
+  seat: id => {
+    const s = S.sellers.find(x => x.id === +id); if (!s) return;
+    if (s.seated) s.pin = -1;
+    else {
+      // Ta med: om bilen är full, bänka den sämst placerade som inte är fastnålad
+      s.pin = 1; assignSeats();
+      if (!s.seated) { const counts = S.areas.map((a, i) => areaWorkers(i).length); if (bestAreaWithRoom(counts) < 0 && !S.sellers.some(x => x.seated && x.area === s.area)) UI.toast('Inget ledigt område', 'Alla områden är fulla. Flytta någon eller uppgradera ett område.', 'bad'); }
+    }
+    seatsDirty = true;
+  },
+  move: id => {
+    const s = S.sellers.find(x => x.id === +id); if (!s) return;
+    const btns = S.areas.map((a, i) => i).filter(i => S.areas[i].unlocked).map(i => {
+      const w = areaWorkers(i).length, full = s.seated && s.area !== i && w >= areaSeats(i);
+      return `<button class="${i === s.area ? 'orange' : ''}" data-mv="${i}" ${full ? 'disabled' : ''} style="margin:3px">${esc(areaName(i))} (${w}/${areaSeats(i)}) ×${fmt(buyPower(i))}</button>`;
+    }).join('');
+    UI.modal(`Flytta ${esc(s.name)}`, `<p>Välj område. Siffrorna visar säljare i området / platser.</p><div>${btns}</div>`, [{ label: 'Stäng', cls: '' }], {
+      onOpen: L => L.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { moveSeller(s.id, +b.dataset.mv); UI.nextModal(); }) });
+  },
+  fire: id => {
+    const s = S.sellers.find(x => x.id === +id); if (!s) return;
+    UI.confirm(`Sparka ${esc(s.name)}?`, `<p>${esc(s.name)} har ${pctStr(s.pct)} i säljprocent och har sålt ${fmt(s.total.sold)} klasar totalt.</p><p><i>${esc(s.name)}: ${pick(CONFIG.fireQuips)}</i></p>`, () => { fire(s.id); UI.toast(`${esc(s.name)} har lämnat LjusCo`, 'Väskan är tillbakalämnad.', ''); }, 'Sparka');
+  },
+  endMaxi: () => UI.confirm('Avsluta samarbetet med Maxi?', '<p>Maxis andel och peppbonus försvinner, han slutar ta in kandidater och hans säljare blir vanliga säljare. <b>Han kan inte anställas tillbaka.</b></p>',
+    () => { endMaxi(); UI.toast('Maxi har gått vidare', '"Det var fint så länge det varade, grabbar!"', ''); }, 'Avsluta'),
+  ability: k => {
+    if (!abilityReady(k)) return;
+    if (k !== 'gold') { useAbility(k); return; }
+    const btns = S.areas.map((a, i) => i).filter(i => S.areas[i].unlocked).map(i => `<button data-gd="${i}" style="margin:3px">${esc(areaName(i))} (${areaWorkers(i).length} säljare)</button>`).join('');
+    UI.modal('Hittar guldgatan', '<p>Arvin har hittat en gata där alla verkar hemma. Vilket område?</p>' + btns, [{ label: 'Avbryt', cls: '' }], {
+      onOpen: L => L.querySelectorAll('[data-gd]').forEach(b => b.onclick = () => { useAbility('gold', +b.dataset.gd); UI.nextModal(); }) });
+  },
+  mgrUp: who => UI.modal(who === 'soran' ? 'Sorans förmågor' : 'Arvins förmågor', `<div class="speech"><div class="bigPortrait">${portraitSVG(who)}</div><div id="abUpBox" style="flex:1">${abilityUpgradesHTML(who)}</div></div>`, [{ label: 'Stäng', cls: '' }], {
+    width: 600, onOpen: L => L.querySelector('#abUpBox').addEventListener('click', e => { const b = e.target.closest('[data-act="abUp"]'); if (b) setTimeout(() => { L.querySelector('#abUpBox').innerHTML = abilityUpgradesHTML(who); }, 0); }) }),
+  prestige: () => {
+    if (!canPrestige()) return;
+    const g = prestigeGain(), nc = CONFIG.cities[nextCityIdx()];
+    UI.confirm(`Expandera till ${esc(nc.name)}?`, `<p>Du får <b>★ ${g} Rykte</b> (totalt ${S.rykte + g} = +${Math.round((S.rykte + g) * CONFIG.prestige.perRykte * 100)} % inkomst för alltid).</p>
+      <p><b>Nollställs:</b> pengar, områden, produkter, bil, coach, alla uppgraderingar och förmågenivåer (även Maxis peppbonus).</p>
+      <p><b>Följer med:</b> alla säljare med sin tränade säljprocent${S.maxi.active ? ', Maxi och hans säljare' : ''}.</p>`,
+      () => { const gg = doPrestige(); UI.buildScene(); UI.toast(`Välkommen till ${esc(city().name)}!`, `+★ ${gg} Rykte. Nu börjar vi om i ${esc(areaName(0))}.`, 'good'); save(); }, 'Expandera!', 'orange');
+  },
+  settings: () => {
+    UI.modal('Inställningar', `<p><b>Exportera sparfil</b> – kopiera koden och spara den någonstans.</p><textarea id="expBox" readonly></textarea>
+      <p><b>Importera</b> – klistra in en sparkod.</p><textarea id="impBox"></textarea>
+      <p class="muted">Spelet sparas automatiskt var 10:e sekund. När spelet är stängt händer ingenting.</p>`,
+      [{ label: 'Nollställ spelet', cls: 'red', fn: () => { UI.confirm('Nollställa allt?', '<p>All framgång försvinner för alltid. Säker?</p>', () => { try { localStorage.removeItem(CONFIG.saveKey); } catch (e) {} newGame(); S.tutorialDone = true; UI.buildScene(); UI.setTab('personal'); UI.toast('Nytt spel', 'Lycka till!', 'good'); }, 'Nollställ'); } },
+       { label: 'Importera', cls: 'orange', fn: L => { const v = L.querySelector('#impBox').value; if (!v.trim()) return true; try { importSave(v); UI.buildScene(); UI.setTab(S.tab || 'personal'); UI.toast('Importerat!', 'Sparfilen är laddad.', 'good'); save(); } catch (e) { UI.toast('Kunde inte importera', 'Koden verkar vara fel.', 'bad'); return true; } } },
+       { label: 'Stäng', cls: '' }],
+      { onOpen: L => { const b = L.querySelector('#expBox'); b.value = exportSave(); b.onclick = () => b.select(); } });
+  },
+};
+
+/* =========================================================================
+   SPELLOOPEN (requestAnimationFrame + delta-tid)
+   ========================================================================= */
+let lastFrame = 0, panelTimer = 0, saveTimer = 0, spriteTimer = 0;
+function frame(now) {
+  let dt = lastFrame ? (now - lastFrame) / 1000 : 0; lastFrame = now;
+  dt = Math.min(dt, 0.25);                   // stängd/dold flik = ingen offline-tid
+  try {
+    if (!paused) update(dt);
+    spriteTimer += dt; if (spriteTimer > 0.2) { spriteTimer = 0; VIS.syncSprites(); }
+    VIS.frame(paused ? 0 : dt);
+    UI.updateScene(); UI.updateTop(); UI.updateManagers();
+    panelTimer += dt; if (panelTimer > 0.25) { panelTimer = 0; UI.refreshPanel(); }
+    saveTimer += dt; if (saveTimer > CONFIG.autosaveSeconds) { saveTimer = 0; save(); }
+  } catch (e) { console.error(e); }
+  requestAnimationFrame(frame);
+}
+
+/* =========================================================================
+   DEBUG/BALANS (används bara för test): window.__ljusco
+   ========================================================================= */
+function botTick(log) {
+  for (const k of ['pep', 'gas', 'recruit']) if (abilityReady(k)) useAbility(k);
+  if (abilityReady('gold')) useAbility('gold', unlockedCount() - 1);
+  if (effect('punka')) fixFlat();
+  // Anställ om det finns lediga bilplatser
+  while (S.sellers.length < carSeats() + 2 && S.candidates.length) {
+    const i = S.candidates.map((c, i) => i).filter(i => S.candidates[i].cost <= S.cash * 0.5).sort((a, b) => S.candidates[b].pct - S.candidates[a].pct)[0];
+    if (i === undefined) break; hire(i);
+  }
+  for (let g = 0; g < 400; g++) {
+    const opts = [];
+    const nu = S.areas.findIndex(a => !a.unlocked);
+    if (nu > 0) opts.push({ prio: 1, cost: CONFIG.area.unlockCost[nu], fn: () => unlockArea(nu), name: 'unlock ' + nu });
+    if (S.product + 1 < CONFIG.products.length) opts.push({ prio: 1, cost: CONFIG.products[S.product + 1].cost, fn: buyProduct, name: 'product ' + (S.product + 1) });
+    if (S.car.tier + 1 < CONFIG.car.ladder.length) opts.push({ prio: 1, cost: CONFIG.car.ladder[S.car.tier + 1].cost, fn: buyCarTier, name: 'car ' + (S.car.tier + 1) });
+    if (S.areas[1].unlocked && !S.coach.hired) opts.push({ prio: 1, cost: CONFIG.coach.hireCost, fn: hireCoach, name: 'coach' });
+    S.areas.forEach((a, i) => { if (a.unlocked) opts.push({ cost: levelCost(CONFIG.area.upgradeBase[i], a.level) * (1 + 0.3 * (S.areas.length - i - 1) * 0), fn: () => { const m = S.buyMode; S.buyMode = 1; upgradeArea(i); S.buyMode = m; } }); });
+    opts.push({ cost: levelCost(CONFIG.car.capCostBase, S.car.capLvl), fn: () => { const m = S.buyMode; S.buyMode = 1; upgradeCar('cap'); S.buyMode = m; } });
+    opts.push({ cost: levelCost(CONFIG.car.speedCostBase, S.car.speedLvl), fn: () => { const m = S.buyMode; S.buyMode = 1; upgradeCar('speed'); S.buyMode = m; } });
+    opts.push({ cost: levelCost(CONFIG.kassa.costBase, S.kassa.lvl), fn: () => { const m = S.buyMode; S.buyMode = 1; upgradeKassa(); S.buyMode = m; } });
+    if (S.maxi.pepLvl < CONFIG.maxi.pepLevels.length - 1) opts.push({ cost: maxiPepCost(), fn: upgradeMaxi });
+    for (const k in CONFIG.abilities) if (S.abilities[k].lvl < CONFIG.abilities[k].maxLevel) opts.push({ cost: abilityUpCost(k), fn: () => upgradeAbility(k) });
+    if (S.coach.hired) { if (S.coach.capLvl < 5) opts.push({ cost: coachCapCost(), fn: () => upgradeCoach('cap') }); if (S.coach.trainLvl < 5) opts.push({ cost: coachTrainCost(), fn: () => upgradeCoach('train') }); }
+    const prio = opts.filter(o => o.prio).sort((a, b) => a.cost - b.cost);
+    const big = prio.find(o => o.cost <= S.cash);
+    if (big) { big.fn(); if (log) log(big.name); continue; }
+    const small = opts.filter(o => !o.prio && o.cost <= S.cash).sort((a, b) => a.cost - b.cost)[0];
+    if (!small) break;
+    const goal = prio[0];
+    if (goal && goal.cost <= S.cash + S.incomeRate * 150 && small.cost > S.cash - goal.cost) break; // spara till målet
+    small.fn();
+  }
+}
+window.__ljusco = {
+  get S() { return S; }, CONFIG, update, fmt, prestigeGain, canPrestige, doPrestige, weekEnd, triggerRandomEvent, save, exportSave, importSave,
+  sim(seconds, opts = {}) {
+    const wasSim = SIM; SIM = true; const log = []; const t0 = S.time;
+    const mark = name => log.push([Math.round(S.time - t0), name]);
+    let acc = 0, prestigeAt = null;
+    for (let t = 0; t < seconds; t += 0.1) {
+      update(0.1); acc += 0.1;
+      if (opts.bot && acc >= 1) { acc = 0; botTick(mark); }
+      if (prestigeAt === null && canPrestige()) { prestigeAt = Math.round(S.time - t0); mark('PRESTIGE READY'); if (opts.stopAtPrestige) break; }
+    }
+    SIM = wasSim;
+    return { log, cash: S.cash, earned: S.cityEarned, income: S.incomeRate, levels: S.areas.map(a => a.unlocked ? a.level : 0), car: [S.car.tier, S.car.capLvl, S.car.speedLvl], kassa: S.kassa.lvl, product: S.product, sellers: S.sellers.length, rykteGain: prestigeGain() };
+  },
+};
+
+/* =========================================================================
+   START
+   ========================================================================= */
+function start() {
+  if (!loadSaved()) newGame();
+  assignSeats();
+  UI.init();
+  if (!S.tutorialDone) UI.tutorial();
+  window.addEventListener('beforeunload', save);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); lastFrame = 0; });
+  window.addEventListener('resize', () => { clearTimeout(window._rz); window._rz = setTimeout(() => UI.buildScene(), 200); });
+  requestAnimationFrame(frame);
+}
+start();
+</script>
+</body>
+</html>
