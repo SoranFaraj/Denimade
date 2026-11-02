@@ -550,10 +550,11 @@ const CONFIG = {
 
   // Prestige / Ny stad
   prestige: {
-    minEarned: 1e10,     // så mycket måste man ha tjänat i staden innan man kan expandera
+    minEarned: 3e10,     // så mycket måste man ha tjänat i staden innan man kan expandera
     unit: 1e9,           // Rykte = floor(k × sqrt(intjänat / unit))
-    k: 1.6,
-    perRykte: 0.20,      // +20 % inkomst per Rykte-stjärna
+    k: 0.9,
+    perRykte: 0.15,      // +15 % inkomst per Rykte-stjärna
+    // Balanserat så att hela spelet (5 städer, allt upplåst i Malmö) tar ca 5 h för en människa.
   },
 
   // Städer – 8 riktiga områden per stad + färgpalett
@@ -676,7 +677,7 @@ function newGame() {
     week: { n: 1, t: 0 },
     report: { cur: emptyReport(), last: null, all: emptyReport() },
     candidates: [], nameUses: {},
-    tutorialDone: false, buyMode: 1, tab: 'personal',
+    tutorialDone: false, buyMode: 1, tab: 'personal', completed: false, completedAt: 0,
     stats: { prestiges: 0, hired: 0, fired: 0, events: 0, unlocks: 0 },
     incomeRate: 0, incomeSamples: [], sampleAcc: 0, sampleSum: 0,
   };
@@ -845,6 +846,7 @@ function update(dt) {
   seatTimer += dt;
   if (seatsDirty || seatTimer > 1) { seatTimer = 0; assignSeats(); }
 
+  checkCompletion();
   updateSellers(dt);
   updateCar(dt);
   updateKassa(dt);
@@ -1142,6 +1144,25 @@ function triggerRandomEvent(forceId) {
 }
 const flatFixCost = () => Math.max(200, Math.round(S.incomeRate * 20));
 function fixFlat() { const e = effect('punka'); if (!e || !spend(flatFixCost())) return false; S.effects = S.effects.filter(x => x !== e); return true; }
+
+/* =========================================================================
+   MÅLET: spelet är klart när allt är upplåst i sista staden
+   ========================================================================= */
+const isLastCity = () => S.cityIdx === CONFIG.cities.length - 1;
+function goalParts() {
+  return [
+    ['Nå sista staden (' + CONFIG.cities[CONFIG.cities.length - 1].name + ')', isLastCity()],
+    ['Lås upp alla 8 områden där', isLastCity() && S.areas.every(a => a.unlocked)],
+    ['Lås upp ' + CONFIG.products[CONFIG.products.length - 1].name, isLastCity() && S.product === CONFIG.products.length - 1],
+    ['Köp ' + CONFIG.car.ladder[CONFIG.car.ladder.length - 1].name, isLastCity() && S.car.tier === CONFIG.car.ladder.length - 1],
+  ];
+}
+function checkCompletion() {
+  if (S.completed || !goalParts().every(p => p[1])) return;
+  S.completed = true; S.completedAt = S.time;
+  if (!SIM) { UI.completePopup(); save(); }
+}
+const playTimeStr = t => `${Math.floor(t / 3600)} h ${Math.floor(t % 3600 / 60)} min`;
 
 /* =========================================================================
    PRESTIGE: NY STAD
@@ -1734,6 +1755,13 @@ const UI = {
     body += `<p class="muted">Vecka ${info.week}: ${fmt(r.clusters)} klasar · försäljning ${kr(r.gross)} · vinst ${kr(r.profit)}. Nya kandidater väntar i Personal-fliken.</p>`;
     this.modal(`Vecka ${info.week} är slut!`, body, [{ label: 'Kör vecka ' + (info.week + 1) + '!' }], { width: 600 });
   },
+  completePopup() {
+    this.modal('LjusCo har erövrat Sverige! 🎉',
+      `<div class="speech"><div class="bigPortrait">${portraitSVG('soran')}</div><div class="bubble">Vi gjorde det! Från vita klasar i Majorna till LjusCo Signature i hela landet. Arvin har kört tusentals mil och Maxi har peppat varenda dörr. Tack för att du drev LjusCo!</div></div>
+       <p>Total speltid: <b>${playTimeStr(S.completedAt)}</b> · Rykte: <b>★ ${S.rykte}</b> · Sålda klasar: <b>${fmt(S.report.all.clusters)}</b></p>
+       <p class="muted">Du kan spela vidare så länge du vill och fortsätta samla Rykte.</p>`,
+      [{ label: 'Spela vidare!' }], { width: 600 });
+  },
   tutorial() {
     const lines = [
       'Tjena! Jag är <b>Soran</b>. Välkommen till <b>LjusCo</b>, vi säljer ljusklasar dörr till dörr i Göteborg. Jag och Arvin driver det här, och nu är det du som styr!',
@@ -1907,12 +1935,17 @@ const PANELS = {
     if (S.report.last) h += `<div class="sec">${row(S.report.last, 'Förra veckan (v. ' + S.report.last.week + ')')}</div>`;
     const ex = splitSale(200, { team: 'A', maxi: false, recruitedBy: null });
     h += `<div class="sec"><h3>Så räknas en försäljning</h3><p>Exempel: vit klase 200 kr i ${esc(areaName(0))}, A-lagare (ej Maxis säljare): provision ${krExact(ex.commission)}, Maxi ${krExact(ex.maxiOwn + ex.maxiOther)}${S.coach.hired ? ', coach ' + krExact(ex.coach) : ''}, vinst <b>${krExact(ex.profit)}</b>.</p></div>`;
+    // Målet
+    const gp = goalParts();
+    h += `<div class="sec"><h3>Mål ${S.completed ? '<span class="badge seat">Klart!</span>' : ''}</h3>
+      ${gp.map(([t, ok]) => `<p>${ok ? '✅' : '⬜'} ${esc(t)}</p>`).join('')}
+      <p class="muted">${S.completed ? 'Avklarat på ' + playTimeStr(S.completedAt) + '.' : `Speltid hittills: ${playTimeStr(S.time)} (beräknat ca 5 h totalt). Städer: ${CONFIG.cities.map(c => c.name).join(' → ')}.`}</p></div>`;
     // Prestige
     const gain = prestigeGain(), ok = canPrestige(), nc = CONFIG.cities[nextCityIdx()];
     h += `<div class="sec"><h3>Ny stad 🏙️</h3><p>Intjänat i ${esc(city().name)}: <b>${kr(S.cityEarned)}</b> (krävs ${kr(CONFIG.prestige.minEarned)})</p>
       <div class="prog"><i style="width:${Math.min(100, 100 * S.cityEarned / CONFIG.prestige.minEarned)}%"></i></div>
       <p>Expandera till <b>${esc(nc.name)}</b> och få <b>★ ${gain} Rykte</b> (+${Math.round(gain * CONFIG.prestige.perRykte * 100)} % inkomst för alltid).</p>
-      <div class="btns"><button class="${ok ? 'orange' : ''}" data-act="prestige" ${ok ? '' : 'disabled'}>Expandera till ${esc(nc.name)}</button></div></div>`;
+      <div class="btns"><button class="${ok ? 'orange' : ''}" data-act="prestige" ${ok ? '' : 'disabled'}>${isLastCity() ? 'Starta om i ' : 'Expandera till '}${esc(nc.name)}</button></div></div>`;
     const A = S.report.all;
     h += `<div class="sec"><h3>Statistik</h3><table class="rep">
       <tr><td>Totalt intjänat</td><td>${kr(S.totalEarned)}</td></tr><tr><td>Sålda klasar totalt</td><td>${fmt(A.clusters)}</td></tr>
